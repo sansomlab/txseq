@@ -1,0 +1,86 @@
+###############################################################################
+######################## load notebook magics #################################
+###############################################################################
+%load_ext rpy2.ipython
+
+###############################################################################
+######################## load python libraries ################################
+###############################################################################
+
+import pandas as pd
+import numpy as np
+import sys, os
+import scipy as scipy
+import CGATPipelines.Pipeline as P
+import CGAT.Database as DB
+
+###############################################################################
+########################### load R libraries ##################################
+###############################################################################
+
+%R invisible(library(ggplot2))
+%R invisible(library(fastcluster))
+%R invisible(library(reshape))
+%R invisible(library(reshape2))
+%R invisible(library(gplots))
+%R invisible(library(RSQLite))
+
+
+###############################################################################
+############### parse pipeline options (pipeline.ini ##########################
+###############################################################################
+
+
+# load options from the config file
+PARAMS = P.getParameters(
+    ["../%s/pipeline.ini" % os.path.splitext(__file__)[0],
+     "../pipeline.ini"])
+
+# add configuration values from associated pipelines
+#
+# 1. pipeline_annotations: any parameters will be added with the
+#    prefix "annotations_". The interface will be updated with
+#    "annotations_dir" to point to the absolute path names.
+PARAMS.update(P.peekParameters(
+    PARAMS["annotations_dir"],
+    "pipeline_annotations.py",
+    on_error_raise=__name__ == "__main__",
+    prefix="annotations_",
+    update_interface=True))
+
+###############################################################################
+############### Configuration of ipython environment ##########################
+###############################################################################
+
+
+#from IPython.core.display import HTML
+#
+#def htmltab(df):
+#    display(HTML(df.to_html()))
+
+
+###############################################################################
+################### Configuration of R environment ############################
+###############################################################################
+
+#set up ggplot2 defaults
+%R theme_set(theme_gray(base_size=18))
+
+
+###############################################################################
+############################# Databases #######################################
+###############################################################################
+
+db = "../csvdb"
+anndb = os.path.join(PARAMS["annotations_dir"],
+       	             PARAMS["annotations_database"])
+
+
+#import databases
+%R -i db -i anndb
+
+print "set database db: %(db)s" % locals()
+print "set database anndb: %(anndb)s" % locals()
+
+
+# set some useful variables
