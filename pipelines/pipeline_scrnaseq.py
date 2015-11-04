@@ -45,8 +45,6 @@ This pipeline performs the follow tasks:
 
 (3) Calculation of post-mapping QC statistics
 
-(4) Preparation of tables of (a) estimated copy numbers and (b) normalised counts for
-    downstream analysis *for cells passing QC selection*
 
 Usage
 =====
