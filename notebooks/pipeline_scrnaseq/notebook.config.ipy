@@ -71,7 +71,10 @@ PARAMS.update(P.peekParameters(
 ############################# Databases #######################################
 ###############################################################################
 
+#the location of the pipeline database, needs to be set.
 db = "../csvdb"
+
+
 anndb = os.path.join(PARAMS["annotations_dir"],
        	             PARAMS["annotations_database"])
 ipydb = "csvdb"

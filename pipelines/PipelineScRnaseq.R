@@ -21,7 +21,6 @@ normalise_to_spikes <- function(spikes, all_fpkms, plotname, outfile, track)
   dev.off()
 
   #calculate copies per cell from the raw fpkms
-
   cufflinks_fpkms = data.frame(fpkms=log10(all_fpkms$FPKM+1), gene_id=all_fpkms$gene_id)
 
   transformed_copy_number = predict(fit,cufflinks_fpkms)
