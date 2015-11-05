@@ -384,7 +384,7 @@ def cram2fastq(infile, outfiles):
 
 # ---------------------------------------------------
 # Generic pipeline tasks
-follows(cram2fastq)
+@follows(cram2fastq)
 def full():
     pass
 

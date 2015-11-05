@@ -201,7 +201,7 @@ def knownHisatSpliceSites(infile, outfile):
     P.run()
 
 
-    @follows(mkdir("hisat.dir/first.pass.dir"))    
+@follows(mkdir("hisat.dir/first.pass.dir"))    
 @transform(glob.glob("data.dir/*.fastq.1.gz"),
           regex(r".*/(.*).fastq.*.gz"),
           add_inputs(knownHisatSpliceSites),
