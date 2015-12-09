@@ -144,19 +144,26 @@ def connect():
 @follows(mkdir("validate.cram.dir"))
 @transform(glob.glob("data.dir/*.cram"),
            regex(r".*/(.*).cram"),
-           r"validate.cram.dir/\1.validate")
-def validateCramFiles(infile, outfile):
+           [r"validate.cram.dir/\1.validate",r"validate.cram.dir/\1.quality"])
+def validateCramFiles(infile, outfiles):
     '''Validate CRAM files by exit status of
-       cramtools qstat.
+       cramtools qstat. Save the quality scores of cram files.
     '''    
-
-    statement = '''cramtools qstat -I %(infile)s > /dev/null;
+    #outfile2 = outfile[:-len(".validate")]
+    outfile, outfile_quality = outfiles
+    print outfile
+    print outfile_quality
+    #outfile_quality = outfile2 + ".quality"
+    temp_quality = P.getTempFilename()
+    statement = '''cramtools qstat -I %(infile)s > %(temp_quality)s;
                    echo $? > %(outfile)s;
+                   cat %(temp_quality)s | awk '{OFS="\\t"} {print $1,$2}' > %(outfile_quality)s;
                 '''
-    
+    print statement
     P.run()
 
-@merge(validateCramFiles,
+@follows(validateCramFiles)
+@merge(glob.glob("validate.cram.dir/*.validate"),
        "validate.cram.dir/summary.txt")
 def inspectValidations(infiles, outfile):
     '''Check that all crams pass validation or
@@ -177,10 +184,19 @@ def inspectValidations(infiles, outfile):
     if sum(exit_states) != 0:
         raise ValueError("One or more cram files failed validation")
 
-
+@follows(validateCramFiles)
+@merge(glob.glob("validate.cram.dir/*.quality"),
+       "validate.cram.dir/crams_quality.load")
+def loadCramQuality(infiles, outfile):
+    ''' Load the quality scores for the different cells into the database (summarized table).
+    '''
+    P.concatenateAndLoad(infiles, outfile,
+                         regex_filename="validate.cram.dir/(.*).quality",
+                         cat = "track",
+                         has_titles = False,
+                         header = "cramID,number_reads,cram_quality_score")
     
-    
-@follows(inspectValidations,
+@follows(inspectValidations,loadCramQuality,
          mkdir("cell.info.dir"))
 @merge(glob.glob("data.dir/*.cram"),
        "cell.info.dir/cells.txt")
@@ -300,7 +316,8 @@ def cram2fastq(infile, outfiles):
     
     quality = PARAMS["preprocess_quality_threshold"]
     minlen = PARAMS["preprocess_min_length"]
-
+    trim = PARAMS["preprocess_trim"]
+    
     trimmed_fastq_prefix = os.path.join(temp_dir, cell_name)
     
 
@@ -317,14 +334,20 @@ def cram2fastq(infile, outfiles):
         trimmed_fastq_files.append(trimmed_fastq_name)
 
         log.write(">> Quality trimming %(fastq_list)s: " % locals() + "\n")
-        statement = '''zcat %(fastq_list)s
+        if trim:
+            statement = '''zcat %(fastq_list)s
                        | fastq_quality_trimmer 
                            -Q33
                            -t %(quality)s
                            -l %(minlen)s
                        | gzip -c
                        > %(trimmed_fastq_name)s
-                    '''
+                       '''
+        else:
+            statement = '''zcat %(fastq_list)s
+                       | gzip -c
+                       > %(trimmed_fastq_name)s
+                       '''
         log.write(statement % _merge_dicts(PARAMS,locals()) + "\n")
         P.run()
         log.write("done. \n\n")
