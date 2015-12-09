@@ -26,8 +26,14 @@ PARAMS = P.getParameters(
 ######################## Copy number functions ################################
 ###############################################################################
 
-def estimateCopyNumber(infiles, outfile):
+def estimateCopyNumber(infiles, outfile, params):
+    '''Estimate copy number based on ERCC spike in concentrations.
+       Expects the location of the directory containing the
+       R code as a single parameter.'''
+    
     infile, cuffnorm_load, ercc_load = infiles
+    code_dir = params[0]
+    
     cuffnorm_table = P.toTable(cuffnorm_load)
     ercc_table = P.toTable(ercc_load)
 
@@ -58,7 +64,6 @@ def estimateCopyNumber(infiles, outfile):
 
     
     
-    #fpkms = PU.fetch_DataFrame(statement, PARAMS["database"])
     fpkms = pd.read_sql(statement, con)
     rfpkms = pdcom.convert_to_r_dataframe(fpkms)
 
@@ -66,8 +71,9 @@ def estimateCopyNumber(infiles, outfile):
     
     r = R.r
 
-    rscript = os.path.join(os.path.join(PARAMS["code_dir"],
+    rscript = os.path.join(os.path.join(code_dir,
                                         PARAMS["rsource"]))
+    
 
     r.source(rscript)
 

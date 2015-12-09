@@ -157,6 +157,14 @@ PARAMS.update(P.peekParameters(
 # Note that this is a hack and deprecated, better pass all
 # parameters that are needed by a function explicitely.
 
+
+# Establish the location of module scripts for P.submit() functions
+if PARAMS["code_dir"]=="":
+    code_dir = os.path.dirname(os.path.realpath(__file__))
+else:
+    code_dir = PARAMS["code_dir"]
+
+
 # -----------------------------------------------
 # Utility functions
 def connect():
@@ -481,11 +489,13 @@ def loadERCC92Info(infile, outfile):
 def estimateCopyNumber(infiles, outfile):
     '''Estimate copy numbers based on standard
        curves constructed from the spike-ins'''
- 
-    P.submit(os.path.join(PARAMS["code_dir"],"PipelineScRnaseq.py"),
+
+    
+    P.submit(os.path.join(code_dir,"PipelineScRnaseq.py"),
                           "estimateCopyNumber", 
                           infiles=infiles,
-                          outfiles=outfile)
+                          outfiles=outfile,
+                          params=[code_dir])
 
    
 @merge(estimateCopyNumber, "copy.number.dir/copynumber.load")
