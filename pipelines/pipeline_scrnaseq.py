@@ -506,6 +506,9 @@ def quantitation():
 ################# (3) Post-mapping Quality Control ############################
 ###############################################################################
 
+
+
+
 @follows(mkdir("qc.dir/rnaseq.metrics.dir/"))
 @transform(hisatAlignments,
            regex(r".*/(.*).bam"),
@@ -514,6 +517,7 @@ def collectRnaSeqMetrics(infile, outfile):
     '''Run Picard CollectRnaSeqMetrics on the bam files'''
 
     picard_out = P.getTempFilename()
+    picard_options = PARAMS["picard_collectrnaseqmetrics_options"]
     
     geneset_flat = PARAMS["picard_geneset_flat"]
     strand_specificity = PARAMS["picard_strand_specificity"]
@@ -531,7 +535,8 @@ def collectRnaSeqMetrics(infile, outfile):
                    O=%(picard_out)s
                    CHART=%(chart_out)s
                    STRAND_SPECIFICITY=%(strand_specificity)s
-                   VALIDATION_STRINGENCY=%(validation_stringency)s;
+                   VALIDATION_STRINGENCY=%(validation_stringency)s
+                   %(picard_options)s;
                    checkpoint;
                    grep . %(picard_out)s | grep -v "#" | head -n2
                    > %(outfile)s;
@@ -596,6 +601,7 @@ def estimateLibraryComplexity(infile, outfile):
     '''Run Picard EstimateLibraryComplexity on the bam files'''
 
     picard_out = P.getTempFilename()
+    picard_options = PARAMS["picard_estimatelibrarycomplexity_options"]
     
     strand_specificity = PARAMS["picard_strand_specificity"]
     validation_stringency = PARAMS["picard_validation_stringency"]
@@ -606,7 +612,8 @@ def estimateLibraryComplexity(infile, outfile):
     statement = '''EstimateLibraryComplexity
                    I=%(infile)s
                    O=%(picard_out)s
-                   VALIDATION_STRINGENCY=%(validation_stringency)s;
+                   VALIDATION_STRINGENCY=%(validation_stringency)s
+                   %(picard_options)s;
                    checkpoint;
                    grep . %(picard_out)s | grep -v "#" | head -n2
                    > %(outfile)s;
@@ -634,6 +641,7 @@ def alignmentSummaryMetrics(infile, outfile):
     '''Run Picard AlignmentSummaryMetrics on the bam files'''
 
     picard_out = P.getTempFilename()
+    picard_options = PARAMS["picard_alignmentsummarymetric_options"]
     
     strand_specificity = PARAMS["picard_strand_specificity"]
     validation_stringency = PARAMS["picard_validation_stringency"]
@@ -649,7 +657,8 @@ def alignmentSummaryMetrics(infile, outfile):
                    I=%(infile)s
                    O=%(picard_out)s
                    REFERENCE_SEQUENCE=%(reference_sequence)s
-                   VALIDATION_STRINGENCY=%(validation_stringency)s;
+                   VALIDATION_STRINGENCY=%(validation_stringency)s
+                   %(picard_options)s;
                    checkpoint;
                    grep . %(picard_out)s | grep -v "#"
                    > %(outfile)s;
