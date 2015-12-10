@@ -209,8 +209,14 @@ def knownHisatSpliceSites(infile, outfile):
     P.run()
 
 
+if PARAMS["paired"]:
+    fastq_pattern = "*.fastq.1.gz"
+else:
+    fastq_pattern = "*.fastq.gz"
+        
+
 @follows(mkdir("hisat.dir/first.pass.dir"))    
-@transform(glob.glob("data.dir/*.fastq.1.gz"),
+@transform(glob.glob("data.dir/" + fastq_pattern),
           regex(r".*/(.*).fastq.*.gz"),
           add_inputs(knownHisatSpliceSites),
           r"hisat.dir/first.pass.dir/\1.novel.splice.sites.txt.gz")
@@ -219,7 +225,7 @@ def hisatFirstPass(infiles, outfile):
 
     reads_one, splice_sites = infiles
 
-    reads_two = reads_one.replace(".1.",".2.")   
+
     
     index = PARAMS["hisat_index"]
     threads = PARAMS["hisat_threads"]
@@ -230,11 +236,16 @@ def hisatFirstPass(infiles, outfile):
     to_cluster= True #this is the default
     job_threads = threads
     job_options = "-l mem_free=4G"
+
+    if PARAMS["paired"]:
+        reads_two = reads_one.replace(".1.",".2.")
+        fastq_input = "-1 " + reads_one + " -2 " + reads_two
+    else:
+        fastq_input = "-U " + reads_one
     
     statement = '''hisat
                       -x %(index)s
-                      -1 %(reads_one)s
-                      -2 %(reads_two)s
+                      %(fastq_input)s
                       --threads %(threads)s
                       --known-splicesite-infile %(splice_sites)s
                       --novel-splicesite-outfile %(out_name)s
@@ -262,8 +273,8 @@ def novelHisatSpliceSites(infiles, outfile):
     P.run()
 
     
-    
-@transform(glob.glob("data.dir/*.fastq.1.gz"),
+   
+@transform(glob.glob("data.dir/" + fastq_pattern),
           regex(r".*/(.*).fastq.*.gz"),
           add_inputs(knownHisatSpliceSites, novelHisatSpliceSites),
           r"hisat.dir/\1.bam")
@@ -271,9 +282,7 @@ def hisatAlignments(infiles, outfile):
     '''Align reads using hisat with known and novel junctions'''
 
     reads_one, known_splice_sites, novel_splice_sites = infiles
-
-    reads_two = reads_one.replace(".1.",".2.")   
-    
+   
     out_sam = P.getTempFilename()
     index = PARAMS["hisat_index"]
     threads = PARAMS["hisat_threads"]
@@ -283,11 +292,17 @@ def hisatAlignments(infiles, outfile):
     to_cluster= True
     job_threads = threads
     job_options = "-l mem_free=4G"
+
+    if PARAMS["paired"]:
+        reads_two = reads_one.replace(".1.",".2.")
+        fastq_input = "-1 " + reads_one + " -2 " + reads_two
+    else:
+        fastq_input = "-U " + reads_one
+
     
     statement = '''hisat
                       -x %(index)s
-                      -1 %(reads_one)s
-                      -2 %(reads_two)s
+                      %(fastq_input)s
                       --threads %(threads)s
                       --known-splicesite-infile %(known_splice_sites)s
                       --novel-splicesite-infile %(novel_splice_sites)s
@@ -609,27 +624,32 @@ def loadThreePrimeBias(infiles, outfile):
            r"qc.dir/library.complexity.dir/\1.library.complexity")    
 def estimateLibraryComplexity(infile, outfile):
     '''Run Picard EstimateLibraryComplexity on the bam files'''
+   
+    if PARAMS["paired"]:
+        picard_out = P.getTempFilename()
+        picard_options = PARAMS["picard_estimatelibrarycomplexity_options"]
 
-    picard_out = P.getTempFilename()
-    picard_options = PARAMS["picard_estimatelibrarycomplexity_options"]
-    
-    strand_specificity = PARAMS["picard_strand_specificity"]
-    validation_stringency = PARAMS["picard_validation_stringency"]
+        strand_specificity = PARAMS["picard_strand_specificity"]
+        validation_stringency = PARAMS["picard_validation_stringency"]
 
-    job_threads = PARAMS["picard_threads"]
-    job_options="-l mem_free=" + PARAMS["picard_memory"]
+        job_threads = PARAMS["picard_threads"]
+        job_options="-l mem_free=" + PARAMS["picard_memory"]
 
-    statement = '''EstimateLibraryComplexity
-                   I=%(infile)s
-                   O=%(picard_out)s
-                   VALIDATION_STRINGENCY=%(validation_stringency)s
-                   %(picard_options)s;
-                   checkpoint;
-                   grep . %(picard_out)s | grep -v "#" | head -n2
-                   > %(outfile)s;
-                   checkpoint;
-                   rm %(picard_out)s;
-                ''' % locals()
+        statement = '''EstimateLibraryComplexity
+                       I=%(infile)s
+                       O=%(picard_out)s
+                       VALIDATION_STRINGENCY=%(validation_stringency)s
+                       %(picard_options)s;
+                       checkpoint;
+                       grep . %(picard_out)s | grep -v "#" | head -n2
+                       > %(outfile)s;
+                       checkpoint;
+                       rm %(picard_out)s;
+                    ''' % locals()
+        
+    else:
+        statement = '''echo "Not compatible with SE data"
+                       > %(outfile)s'''
 
     P.run()
 
@@ -638,10 +658,18 @@ def estimateLibraryComplexity(infile, outfile):
 def loadEstimateLibraryComplexity(infiles, outfile):
     '''load the complexity metrics to a single table in the db'''
 
-    P.concatenateAndLoad(infiles, outfile,
-                         regex_filename=".*/.*/(.*).library.complexity",
-                         cat="cell",
-                         options = '-i "cell"')
+    if PARAMS["paired"]:
+        P.concatenateAndLoad(infiles, outfile,
+                             regex_filename=".*/.*/(.*).library.complexity",
+                             cat="cell",
+                             options = '-i "cell"')
+    else:
+        statement = '''echo "Not compatible with SE data" 
+                       > %(outfile)s'''
+        P.run()
+
+
+    
 
 @follows(mkdir("qc.dir/alignment.summary.metrics.dir/"))
 @transform(hisatAlignments,
@@ -789,7 +817,22 @@ def loadFractionReadsSpliced(infiles, outfile):
 def qcSummary(infiles, outfile):
     '''create a summary table of relevant QC metrics'''
 
-    tables = [P.toTable(x) for x in infiles]
+    # Some QC metrics are specific to paired end data
+    if PARAMS["paired"]:
+        exclude = []
+        optional_columns = '''READ_PAIRS_EXAMINED as no_pairs,
+                              PERCENT_DUPLICATION as percent_duplication,
+                              ESTIMATED_LIBRARY_SIZE as library_size,
+                           '''
+        pcat = "PAIR"
+        
+    else:
+        exclude = ["qc_library_complexity"]
+        optional_columns = ''
+        pcat = "UNPAIRED"
+
+    tables = [P.toTable(x) for x in infiles
+              if P.toTable(x) not in exclude]
 
     t1 = tables[0]
 
@@ -797,22 +840,27 @@ def qcSummary(infiles, outfile):
     for table in tables[1:]:
         join_stat += "left join " + table + "\n"
         join_stat += "on " + t1 + ".cell=" + table + ".cell\n"
-       
+
+        
     stat_start = '''select distinct %(t1)s.cell, 
                                    fraction_spliced, 
                                    fraction_spike, 
                                    no_genes, 
-                                   READ_PAIRS_EXAMINED as no_pairs,
-                                   PERCENT_DUPLICATION as percent_duplication,
-                                   ESTIMATED_LIBRARY_SIZE as library_size,
                                    three_prime_bias as three_prime_bias,
+                                   %(optional_columns)s
                                    PCT_MRNA_BASES as percent_mrna,
                                    PCT_CODING_BASES as percent_coding,
-                                   PCT_PF_READS_ALIGNED as percent_reads_aligned
+                                   PCT_PF_READS_ALIGNED as percent_reads_aligned,
+                                   TOTAL_READS as total_reads,
+                                   PCT_PF_READS as pct_pf_reads,
+                                   PCT_PF_READS_ALIGNED as pct_pf_reads_aligned,
+                                   PCT_READS_ALIGNED_IN_PAIRS as pct_reads_aligned_in_pairs
                    from %(t1)s
                 ''' % locals()
 
-    where_stat = '''where qc_alignment_summary_metrics.CATEGORY="PAIR"'''
+
+    where_stat = '''where qc_alignment_summary_metrics.CATEGORY="%(pcat)s"
+                 ''' % locals()
     
     statement = "\n".join([stat_start, join_stat, where_stat])
 
