@@ -307,7 +307,9 @@ def cram2fastq(infile, outfiles):
                                      os.path.basename(cram)[:-len(".cram")] )
             raw_fastq_names.append(raw_fastq_name)
 
-            statement = '''cramtools fastq --enumerate
+            statement = '''cramtools fastq 
+                                       --enumerate
+                                       --reverse
                                        -F %(raw_fastq_name)s 
                                        -I %(cram)s
                                        --gzip
@@ -363,27 +365,39 @@ def cram2fastq(infile, outfiles):
         P.run()
         log.write("done. \n\n")
 
-    temp_files += trimmed_fastq_files
-        
     ####################    
     # Reconcile the ends
     ####################
-    
-    end1, end2 = trimmed_fastq_files
 
-    reconciled_fastq_prefix = outfiles[0][:-len(".1.gz")]
+    if PARAMS["preprocess_reconcile"]!="False":
 
-    log.write(">> Reconciling pairs, %(end1)s & %(end2)s: " % locals() + "\n")
-    statement='''python %(scriptsdir)s/fastqs2fastqs.py
-                 %(end1)s %(end2)s
-                 --method reconcile
-                 --chop
-                 --unpaired
-                 -o "%(reconciled_fastq_prefix)s.%%s.gz";
-              '''
-    log.write(statement % _merge_dicts(PARAMS, locals()) + "\n")
-    P.run()
-    log.write("done\n\n")
+        temp_files += trimmed_fastq_files
+        
+
+        end1, end2 = trimmed_fastq_files
+
+        reconciled_fastq_prefix = outfiles[0][:-len(".1.gz")]
+
+        log.write(">> Reconciling pairs, %(end1)s & %(end2)s: " % locals() + "\n")
+        statement='''python %(scriptsdir)s/fastqs2fastqs.py
+                     %(end1)s %(end2)s
+                     --method reconcile
+                     --chop
+                     --unpaired
+                     -o "%(reconciled_fastq_prefix)s.%%s.gz";
+                  '''
+        log.write(statement % _merge_dicts(PARAMS, locals()) + "\n")
+        P.run()
+        log.write("done\n\n")
+
+    else:
+        trimmed_fastq_prefix = outfiles[0][:-len(".1.gz")]
+        for end in trimmed_fastq_files:
+            if "1.trimmed" in end: endn = "1"
+            else: endn = "2"
+            os.symlink(os.path.abspath(end), ".".join([trimmed_fastq_prefix, endn, "gz"]))
+
+        
 
     ##############################
     # Clean up the temporary files
