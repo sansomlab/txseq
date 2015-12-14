@@ -716,7 +716,7 @@ def loadAlignmentSummaryMetrics(infiles, outfile):
                          cat="cell",
                          options = '-i "cell"')
 
-    
+# merge these two    
 @follows(mkdir("qc.dir/fraction.spike.dir/"))
 @transform(hisatAlignments,
            regex(r".*/(.*).bam"),
@@ -804,7 +804,28 @@ def loadFractionReadsSpliced(infiles, outfile):
                          cat="cell",
                          options = '-i "cell"')
 
+@follows(mkdir("qc.dir/mapped.reads.dir"))
+@transform(hisatAlignments,
+           regex(r".*/(.*).bam"),
+           r"qc.dir/mapped.reads.dir/\1.mapped.reads")
+def MappedReadsGenomeSpike(infile, outfile):
+    '''summarise the number of reads mapping to ERCCs and genome'''
+    statement= ''' echo -e "reads_mapped_genome\\treads_mapped_ercc" > %(outfile)s;
+                   samtools idxstats %(infile)s |
+                   awk '{OFS="\\t"} '/chr*/'{genome+=$3} '/ERCC*/'{ercc+=$3} END {print genome,ercc}' >> %(outfile)s
+               ''' % locals()
+    P.run()
 
+@merge(MappedReadsGenomeSpike,
+       "qc.dir/qc_mapped_genome_ercc.load")
+def loadMappedReadsGenomeSpike(infiles, outfile):
+    '''load to reads mapping to genome or ERCCs to a single db table'''
+    P.concatenateAndLoad(infiles, outfile,
+                         regex_filename=".*/.*/(.*).mapped.reads",
+                         cat="cell",
+                         #has_titles = False,
+                         #header="cell,mapped_genome,mapped_ercc",
+                         options='-i "cell"')
 
 @merge([loadCollectRnaSeqMetrics,
         loadThreePrimeBias,
@@ -812,7 +833,8 @@ def loadFractionReadsSpliced(infiles, outfile):
         loadSpikeVsGenome,
         loadFractionReadsSpliced,
         loadNumberGenesDetected,
-        loadAlignmentSummaryMetrics],
+        loadAlignmentSummaryMetrics,
+        loadMappedReadsGenomeSpike],
        "qc.dir/qc_summary.txt")       
 def qcSummary(infiles, outfile):
     '''create a summary table of relevant QC metrics'''
@@ -847,6 +869,8 @@ def qcSummary(infiles, outfile):
                                    fraction_spike, 
                                    no_genes, 
                                    three_prime_bias as three_prime_bias,
+                                   reads_mapped_genome as mapped_reads_genome,
+                                   reads_mapped_ercc as mapped_reads_ercc,
                                    %(optional_columns)s
                                    PCT_MRNA_BASES as percent_mrna,
                                    PCT_CODING_BASES as percent_coding,
@@ -878,6 +902,7 @@ def loadQCSummary(infile, outfile):
 
     P.load(infile, outfile)
 
+    
 @follows(loadQCSummary)
 def qc():
     '''target for executing qc'''
