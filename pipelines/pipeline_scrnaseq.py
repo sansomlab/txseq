@@ -36,7 +36,8 @@ Overview
 
 This pipeline performs the follow tasks:
 
-(1) Mapping of reads using hisat (paired end fastq files are expected)
+(1) Mapping of reads using hisat
+      - paired (default) or single end fastq files are expected as the input
 
 (2) Quantitation of gene expression
       - Ensembl protein coding + ERCC spikes
@@ -148,6 +149,8 @@ import CGAT.Database as DB
 
 import PipelineScRnaseq as PipelineScRnaseq
 
+# -------------------------- < parse parameters > --------------------------- #
+
 # load options from the config file
 PARAMS = P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
@@ -184,8 +187,8 @@ else:
     code_dir = PARAMS["code_dir"]
 
 
-# -----------------------------------------------
-# Utility functions
+# ------------------------- < utility functions > --------------------------- #
+
 def connect():
     '''utility function to connect to database.
 
@@ -403,7 +406,7 @@ def loadHTSeqCounts(infiles, outfile):
                              options='-i "gene_id"')
 
 
-# ---------------------- Copynumber estimation ------------------------------ #
+# -------------------- FPKM (Cufflinks) quantitation------------------------- #
 
 @follows(mkdir("cuffquant.dir"))
 @transform(hisatAlignments,
@@ -500,6 +503,8 @@ def loadCuffNorm(infile, outfile):
            options='-i "gene_id"')
 
 
+# ---------------------- Copynumber estimation ------------------------------ #
+
 @follows(mkdir("annotations.dir"))
 @files(PARAMS["annotations_ercc92_info"],
        "annotations.dir/ercc.load")
@@ -544,6 +549,9 @@ def quantitation():
 # ########################################################################### #
 # ################ (3) Post-mapping Quality Control ######################### #
 # ########################################################################### #
+
+
+# ------------------- Picard: CollectRnaSeqMetrics -------------------------- #
 
 @follows(mkdir("qc.dir/rnaseq.metrics.dir/"))
 @transform(hisatAlignments,
@@ -599,6 +607,8 @@ def loadCollectRnaSeqMetrics(infiles, outfile):
                          options='-i "cell"')
 
 
+# --------------------- Three prime bias analysis --------------------------- #
+
 @transform(collectRnaSeqMetrics,
            suffix(".rnaseq.metrics"),
            ".three.prime.bias")
@@ -632,6 +642,8 @@ def loadThreePrimeBias(infiles, outfile):
                          cat="cell",
                          options='-i "cell"')
 
+
+# ----------------- Picard: EstimateLibraryComplexity ----------------------- #
 
 @follows(mkdir("qc.dir/library.complexity.dir/"))
 @transform(hisatAlignments,
@@ -685,6 +697,8 @@ def loadEstimateLibraryComplexity(infiles, outfile):
         P.run()
 
 
+# ------------------- Picard: AlignmentSummaryMetrics ----------------------- #
+
 @follows(mkdir("qc.dir/alignment.summary.metrics.dir/"))
 @transform(hisatAlignments,
            regex(r".*/(.*).bam"),
@@ -732,6 +746,8 @@ def loadAlignmentSummaryMetrics(infiles, outfile):
                          options='-i "cell"')
 
 
+# -------------- No. reads mapping to spike-ins vs genome ------------------- #
+
 @follows(mkdir("qc.dir/spike.vs.genome.dir"))
 @transform(hisatAlignments,
            regex(r".*/(.*).bam"),
@@ -751,7 +767,8 @@ def spikeVsGenome(infile, outfile):
                     | awk 'BEGIN{OFS="\\t";ercc=0;genome=0};
                            $3~/chr*/{genome+=1};
                            $3~/ERCC*/{ercc+=1};
-                           END{frac=ercc/(ercc+genome);print ercc,genome,frac}'
+                           END{frac=ercc/(ercc+genome);
+                               print genome,ercc,frac};'
                     >> %(outfile)s
                 ''' % locals()
     P.run()
@@ -768,6 +785,8 @@ def loadSpikeVsGenome(infiles, outfile):
                          cat="cell",
                          options='-i "cell"')
 
+
+# ------------------------- No. genes detected ------------------------------ #
 
 @follows(mkdir("qc.dir/"))
 @files(loadCopyNumber,
@@ -797,6 +816,8 @@ def loadNumberGenesDetected(infile, outfile):
     P.load(infile, outfile,
            options='-i "cell" -H "cell,no_genes"')
 
+
+# --------------------- Fraction of spliced reads --------------------------- #
 
 @follows(mkdir("qc.dir/fraction.spliced.dir/"))
 @transform(hisatAlignments,
@@ -831,6 +852,8 @@ def loadFractionReadsSpliced(infiles, outfile):
                          cat="cell",
                          options='-i "cell"')
 
+
+# ---------------- Prepare a post-mapping QC summary ------------------------ #
 
 @follows(mkdir("annotations.dir"))
 @merge(hisatAlignments,
@@ -918,8 +941,8 @@ def qcSummary(infiles, outfile):
                                        as percent_reads_aligned,
                                     TOTAL_READS
                                        as total_reads,
-                                    PCT_PF_READS
-                                       as pct_pf_reads,
+                                    PCT_ADAPTER
+                                       as pct_adapter,
                                     PCT_PF_READS_ALIGNED
                                        as pct_pf_reads_aligned,
                                     PCT_READS_ALIGNED_IN_PAIRS
@@ -931,8 +954,6 @@ def qcSummary(infiles, outfile):
                  ''' % locals()
 
     statement = "\n".join([stat_start, join_stat, where_stat])
-
-    print statement
 
     df = DB.fetch_DataFrame(statement, PARAMS["database_name"])
     df.to_csv(outfile, sep="\t", index=False)
@@ -953,9 +974,7 @@ def qc():
     pass
 
 
-# ########################################################################### #
-# ########################## Copy Notebooks ################################# #
-# ########################################################################### #
+# --------------------- < generic pipeline tasks > -------------------------- #
 
 @follows(mkdir("notebook.dir"))
 @transform(glob.glob(os.path.join(os.path.dirname(__file__),
@@ -970,8 +989,6 @@ def notebooks(infile, outfile):
 
     shutil.copy(infile, outfile)
 
-
-# --------------------- < generic pipeline tasks > -------------------------- #
 
 @follows(mapping, quantitation, qc, notebooks)
 def full():
