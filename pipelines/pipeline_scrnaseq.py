@@ -267,7 +267,7 @@ def hisatFirstPass(infiles, outfile):
                       --threads %(threads)s
                       --known-splicesite-infile %(splice_sites)s
                       --novel-splicesite-outfile %(out_name)s
-                      -k 20
+                      %(hisat_options)s
                       -S /dev/null
                    &> %(log)s;
                    checkpoint;
@@ -322,7 +322,7 @@ def hisatAlignments(infiles, outfile):
                       --threads %(threads)s
                       --known-splicesite-infile %(known_splice_sites)s
                       --novel-splicesite-infile %(novel_splice_sites)s
-                      -k 20
+                      %(hisat_options)s
                       -S %(out_sam)s
                    &> %(log)s;
                    checkpoint;
