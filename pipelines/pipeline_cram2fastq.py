@@ -34,7 +34,8 @@ Pipeline cram2fastq
 Overview
 ========
 
-This pipeline coverts Sanger CRAM files to fastq.gz, quality trims and reconciles the fastq files
+This pipeline coverts Sanger CRAM files to fastq.gz,
+quality trims and reconciles the fastq files
 
 Usage
 =====
@@ -88,7 +89,9 @@ Code
 
 from ruffus import *
 
-import sys, os, glob
+import sys
+import os
+import glob
 import sqlite3
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
@@ -114,12 +117,13 @@ PARAMS.update(P.peekParameters(
     update_interface=True))
 
 # define some tracks if needed
-TRACKS = PipelineTracks.Tracks( PipelineTracks.Sample ).loadFromDirectory(
-        glob.glob("*.ini" ), "(\S+).ini" )
+
+TRACKS = PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
+    glob.glob("*.ini"), "(\S+).ini")
 
 
-# -----------------------------------------------
-# Utility functions
+# --------------------------< utility functions >---------------------------- #
+
 def connect():
     '''Connect to database.
        Use this method to connect to additional databases.
@@ -136,29 +140,28 @@ def connect():
     return dbh
 
 
-# ---------------------------------------------------
-# Specific pipeline tasks
-
-    
+# ------------------------< specific pipeline tasks >------------------------ #
 
 @follows(mkdir("validate.cram.dir"))
 @transform(glob.glob("data.dir/*.cram"),
            regex(r".*/(.*).cram"),
-           [r"validate.cram.dir/\1.validate",r"validate.cram.dir/\1.quality"])
+           [r"validate.cram.dir/\1.validate", r"validate.cram.dir/\1.quality"])
 def validateCramFiles(infile, outfiles):
     '''Validate CRAM files by exit status of
        cramtools qstat. Save the quality scores of cram files.
-    '''    
+    '''
 
     outfile, outfile_quality = outfiles
 
     temp_quality = P.getTempFilename()
     statement = '''cramtools qstat -I %(infile)s > %(temp_quality)s;
                    echo $? > %(outfile)s;
-                   cat %(temp_quality)s | awk '{OFS="\\t"} {print $1,$2}' > %(outfile_quality)s;
+                   cat %(temp_quality)s
+                   | awk '{OFS="\\t"} {print $1,$2}'
+                   > %(outfile_quality)s;
                 '''
-    print statement
     P.run()
+
 
 @follows(validateCramFiles)
 @merge(validateCramFiles,
@@ -167,24 +170,24 @@ def inspectValidations(infiles, outfile):
     '''Check that all crams pass validation or
        raise an Error.'''
 
-    validation_files = [ fn
-                         for filenames in infiles
-                         for fn in filenames
-                         if fn.endswith(".validate") ]
+    validation_files = [fn
+                        for filenames in infiles
+                        for fn in filenames
+                        if fn.endswith(".validate")]
 
     outfile_handle = open(outfile, "w")
 
     exit_states = []
     for validation_file in validation_files:
 
-        with open(validation_file,"r") as vf_handle:
+        with open(validation_file, "r") as vf_handle:
             exit_status = vf_handle.read().strip("\n")
 
         exit_states.append(int(exit_status))
         outfile_handle.write("\t".join([validation_file, exit_status])+"\n")
 
     outfile_handle.close()
-    
+
     if sum(exit_states) != 0:
         raise ValueError("One or more cram files failed validation")
 
@@ -193,20 +196,22 @@ def inspectValidations(infiles, outfile):
 @merge(validateCramFiles,
        "validate.cram.dir/cram_quality.load")
 def loadCramQuality(infiles, outfile):
-    ''' Load the quality scores for the different cells into the database (summarized table).
+    ''' Load the quality scores for the different cells
+        into the database (summarized table).
     '''
-    quality_files = [ fn
-                      for filenames in infiles
-                      for fn in filenames
-                      if fn.endswith(".quality") ]
-    
+
+    quality_files = [fn
+                     for filenames in infiles
+                     for fn in filenames
+                     if fn.endswith(".quality")]
+
     P.concatenateAndLoad(quality_files, outfile,
                          regex_filename="validate.cram.dir/(.*).quality",
-                         cat = "track",
-                         has_titles = False,
-                         header = "cramID,number_reads,cram_quality_score")
+                         cat="track",
+                         has_titles=False,
+                         header="cramID,number_reads,cram_quality_score")
 
-    
+
 @follows(inspectValidations,
          mkdir("cell.info.dir"))
 @merge(glob.glob("data.dir/*.cram"),
@@ -217,7 +222,7 @@ def extractSampleInformation(infiles, outfile):
     # build a dictionary of cell to cram file mappings
     cells = {}
     for cram_file in infiles:
-        cram = pysam.AlignmentFile(cram_file,"rb")
+        cram = pysam.AlignmentFile(cram_file, "rb")
         cell = cram.header["RG"][0]["SM"]
         if cell not in cells.keys():
             cells[cell] = [cram_file]
@@ -232,10 +237,9 @@ def extractSampleInformation(infiles, outfile):
     outfile_handle.write("#cell\tcram_files\n")
 
     for cell in cells.keys():
-        outfile_handle.write("\t".join([cell,",".join(cells[cell])])+"\n")
+        outfile_handle.write("\t".join([cell, ",".join(cells[cell])])+"\n")
 
     outfile_handle.close()
-
 
 
 @split(extractSampleInformation,
@@ -245,18 +249,20 @@ def cellCramLists(infile, outfiles):
        corresponding to the cell'''
 
     out_dir = os.path.dirname(infile)
-    
-    with open(infile,"r") as cell_list:
+
+    with open(infile, "r") as cell_list:
         for record in cell_list:
             if record.startswith("#"):
                 continue
             cell, cram_list = record.strip("\n").split("\t")
             crams = cram_list.split(",")
-            with open(os.path.join(out_dir,cell+".cell"),"w") as cell_file_handle:
+
+            cell_outfile_name = os.path.join(out_dir, cell+".cell")
+            with open(cell_outfile_name, "w") as cell_file_handle:
                 for cram in crams:
                     cell_file_handle.write(cram+"\n")
 
-   
+
 @follows(mkdir("fastq.dir"),
          mkdir("fastq.temp.dir"),
          extractSampleInformation)
@@ -270,20 +276,20 @@ def cram2fastq(infile, outfiles):
        and pair reconciliation.
        Intermediate files are not kept by default.'''
 
-    ## TODO: make quality trimming optional.
+    # TODO: make quality trimming optional.
 
     ###################################
     # set variables and open a log file
     ###################################
-    
+
     cell_name = os.path.basename(infile)[:-len(".cell")]
     out_dir = os.path.dirname(outfiles[0])
     temp_dir = "fastq.temp.dir"
-    
+
     log_file = os.path.join(temp_dir,
                             cell_name + ".fastq.extraction.log")
 
-    log = open(log_file,"w")
+    log = open(log_file, "w")
     log.write("Fastq extraction log file for %(infile)s\n\n")
 
     def _merge_dicts(a, b):
@@ -292,55 +298,54 @@ def cram2fastq(infile, outfiles):
         return(x)
 
     temp_files = []
-    
-    #################################################
+
+    # ##############################################
     # Extract per-end Fastq(s) from the cram file(s)
-    #################################################
-    
+    # ##############################################
+
     raw_fastq_names = []
     with open(infile, "rb") as cram_files:
 
         for line in cram_files:
-          
+
             cram = line.strip()
-            raw_fastq_name = os.path.join(temp_dir,
-                                     os.path.basename(cram)[:-len(".cram")] )
+            cram_basename = os.path.basename(cram)[:-len(".cram")]
+            raw_fastq_name = os.path.join(temp_dir, cram_basename)
             raw_fastq_names.append(raw_fastq_name)
 
-            statement = '''cramtools fastq 
+            statement = '''cramtools fastq
                                        --enumerate
                                        --reverse
-                                       -F %(raw_fastq_name)s 
+                                       -F %(raw_fastq_name)s
                                        -I %(cram)s
                                        --gzip
                          '''
             log.write("Extracting fastqs from %(cram)s:" % locals() + "\n")
             log.write(statement % locals() + "\n")
-            
+
             P.run()
 
             log.write("done.\n\n")
 
-            
-    #####################################          
+    # ####################################
     # Perform quality trimming
     # Merging is also taken care of here.
-    #####################################
-    
+    # ####################################
+
     quality = PARAMS["preprocess_quality_threshold"]
     minlen = PARAMS["preprocess_min_length"]
     trim = PARAMS["preprocess_trim"]
-    
+
     trimmed_fastq_prefix = os.path.join(temp_dir, cell_name)
-    
 
     trimmed_fastq_files = []
+
     # fastq(s) for each end are quality trimmed separately
-    for end in ["_1","_2"]:
+    for end in ["_1", "_2"]:
 
         raw_fastqs = [x + end + ".fastq.gz" for x in raw_fastq_names]
         temp_files += raw_fastqs
-        
+
         fastq_list = " ".join(raw_fastqs)
 
         trimmed_fastq_name = trimmed_fastq_prefix + end + ".trimmed.fastq.gz"
@@ -349,7 +354,7 @@ def cram2fastq(infile, outfiles):
         log.write(">> Quality trimming %(fastq_list)s: " % locals() + "\n")
         if trim:
             statement = '''zcat %(fastq_list)s
-                       | fastq_quality_trimmer 
+                       | fastq_quality_trimmer
                            -Q33
                            -t %(quality)s
                            -l %(minlen)s
@@ -361,31 +366,31 @@ def cram2fastq(infile, outfiles):
                        | gzip -c
                        > %(trimmed_fastq_name)s
                        '''
-        log.write(statement % _merge_dicts(PARAMS,locals()) + "\n")
+        log.write(statement % _merge_dicts(PARAMS, locals()) + "\n")
         P.run()
         log.write("done. \n\n")
 
-    ####################    
+    # ##################
     # Reconcile the ends
-    ####################
+    # ##################
 
-    if PARAMS["preprocess_reconcile"]!="False":
+    if PARAMS["preprocess_reconcile"] != "False":
 
         temp_files += trimmed_fastq_files
-        
 
         end1, end2 = trimmed_fastq_files
 
         reconciled_fastq_prefix = outfiles[0][:-len(".1.gz")]
 
-        log.write(">> Reconciling pairs, %(end1)s & %(end2)s: " % locals() + "\n")
-        statement='''python %(scriptsdir)s/fastqs2fastqs.py
-                     %(end1)s %(end2)s
-                     --method reconcile
-                     --chop
-                     --unpaired
-                     -o "%(reconciled_fastq_prefix)s.%%s.gz";
-                  '''
+        log.write(">> Reconciling pairs, %(end1)s & %(end2)s: "
+                  % locals() + "\n")
+        statement = '''python %(scriptsdir)s/fastqs2fastqs.py
+                       %(end1)s %(end2)s
+                       --method reconcile
+                       --chop
+                       --unpaired
+                       -o "%(reconciled_fastq_prefix)s.%%s.gz";
+                    '''
         log.write(statement % _merge_dicts(PARAMS, locals()) + "\n")
         P.run()
         log.write("done\n\n")
@@ -393,18 +398,20 @@ def cram2fastq(infile, outfiles):
     else:
         trimmed_fastq_prefix = outfiles[0][:-len(".1.gz")]
         for end in trimmed_fastq_files:
-            if "1.trimmed" in end: endn = "1"
-            else: endn = "2"
-            os.symlink(os.path.abspath(end), ".".join([trimmed_fastq_prefix, endn, "gz"]))
+            if "1.trimmed" in end:
+                endn = "1"
+            else:
+                endn = "2"
 
-        
+            trimmed_end_name = ".".join([trimmed_fastq_prefix, endn, "gz"])
+            os.symlink(os.path.abspath(end), trimmed_end_name)
 
     ##############################
     # Clean up the temporary files
     ##############################
 
-    if PARAMS["keep_temporary"]==0:
-        
+    if PARAMS["keep_temporary"] == 0:
+
         temp_file_list = " ".join(temp_files)
 
         # record files sizes and md5 checksums of the temporary files
@@ -412,7 +419,7 @@ def cram2fastq(infile, outfiles):
         statement = '''ls -l %(temp_file_list)s
                        > %(temp_dir)s/%(cell_name)s.ls;
                        checkpoint;
-                       md5sum %(temp_file_list)s 
+                       md5sum %(temp_file_list)s
                        > %(temp_dir)s/%(cell_name)s.md5;
                     '''
         log.write(statement % locals() + "\n")
@@ -426,17 +433,18 @@ def cram2fastq(infile, outfiles):
             os.unlink(temp_file)
 
         log.write("tempororay files unlinked\n")
-    
-    log.close()
-    
 
-# ---------------------------------------------------
-# Generic pipeline tasks
+    log.close()
+
+
+# ---------------------< generic pipeline tasks >---------------------------- #
+
 @follows(cram2fastq, loadCramQuality)
 def full():
     pass
 
-###########################################################################
+
+# ########################################################################### #
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
