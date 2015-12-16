@@ -38,9 +38,9 @@ This pipeline performs the follow tasks:
 
 (1) Mapping of reads using hisat (paired end fastq files are expected)
 
-(2) Quantitation of gene expression 
+(2) Quantitation of gene expression
       - Ensembl protein coding + ERCC spikes
-      - Cufflinks (cuffquant + cuffnorm) is run for copy number estimation 
+      - Cufflinks (cuffquant + cuffnorm) is run for copy number estimation
       - HTseq is run for counts
 
 (3) Calculation of post-mapping QC statistics
@@ -68,15 +68,30 @@ Input files
 -----------
 
 The pipeline expects sequence data from each cell in the form
-of paired-end fastq files to be present in a "data.dir" 
+of paired-end fastq files to be present in a "data.dir"
+
+It is recommended that files are named according
+to the following convention:
+
+source-condition-replicate
+
+An arbitrary number of fields can be specified, e.g. see the
+Pipeline.ini defaults (configured for plate bases single cell data):
+
+name_field_separator=-
+name_field_titles=source,condition,plate,row,column
+
+example file name:
+
+mTEChi-wildtype-plate1-A-1.fastq.1.gz
 
 The location of a table of ERCC spike in copy numbers should be
-provided in the pipeline.ini file. 
+provided in the pipeline.ini file.
 
 The expected structure (tab-delimited) is:
 
-gene_id    |genebank_id|5prime_assay  |3prime_assay  |sequence|length|copies_per_cell
-ERCC-00130 |EF011072   |Ac03459943_a1 |Ac03460039_a1 |CGAT... |1059  |20324.7225
+gene_id|genebank_id|5prime_assay |3prime_assay |sequence|length|copies_per_cell
+ERCC-..|EF011072   |Ac03459943_a1|Ac03460039_a1|CGAT... |1059  |20324.7225
 
 
 Requirements
@@ -118,8 +133,12 @@ Code
 """
 from ruffus import *
 
-import sys, os, glob
+import sys
+import shutil
+import os
+import glob
 import sqlite3
+
 import pandas as pd
 import numpy as np
 
@@ -159,7 +178,7 @@ PARAMS.update(P.peekParameters(
 
 
 # Establish the location of module scripts for P.submit() functions
-if PARAMS["code_dir"]=="":
+if PARAMS["code_dir"] == "":
     code_dir = os.path.dirname(os.path.realpath(__file__))
 else:
     code_dir = PARAMS["code_dir"]
@@ -186,25 +205,23 @@ def connect():
     return dbh
 
 
-# ---------------------------------------------------
-# Specific pipeline tasks
+# ---------------------- < specific pipeline tasks > ------------------------ #
 
-
-###############################################################################
-########################## (1) Read Mapping ###################################
-###############################################################################
-
+# ########################################################################### #
+# ######################### (1) Read Mapping ################################ #
+# ########################################################################### #
 
 @follows(mkdir("annotations.dir"))
-@files(os.path.join(PARAMS["annotations_dir"],"ensembl.dir","geneset_all.gtf.gz"),
+@files(os.path.join(PARAMS["annotations_dir"],
+                    "ensembl.dir",
+                    "geneset_all.gtf.gz"),
        "annotations.dir/known.splice.sites.hisat.txt")
 def knownHisatSpliceSites(infile, outfile):
     '''Prepare known splice junctions for hisat.
        Note that the ERCC spike-ins are not spliced'''
-    
-   
-    statement='''extract_splice_sites.py <(zcat %(infile)s) 
-                 > %(outfile)s''' % locals()
+
+    statement = '''extract_splice_sites.py <(zcat %(infile)s)
+                   > %(outfile)s''' % locals()
 
     P.run()
 
@@ -213,36 +230,34 @@ if PARAMS["paired"]:
     fastq_pattern = "*.fastq.1.gz"
 else:
     fastq_pattern = "*.fastq.gz"
-        
 
-@follows(mkdir("hisat.dir/first.pass.dir"))    
+
+@follows(mkdir("hisat.dir/first.pass.dir"))
 @transform(glob.glob("data.dir/" + fastq_pattern),
-          regex(r".*/(.*).fastq.*.gz"),
-          add_inputs(knownHisatSpliceSites),
-          r"hisat.dir/first.pass.dir/\1.novel.splice.sites.txt.gz")
+           regex(r".*/(.*).fastq.*.gz"),
+           add_inputs(knownHisatSpliceSites),
+           r"hisat.dir/first.pass.dir/\1.novel.splice.sites.txt.gz")
 def hisatFirstPass(infiles, outfile):
     '''Run a first hisat pass to identify novel splice sites'''
 
     reads_one, splice_sites = infiles
 
-
-    
     index = PARAMS["hisat_index"]
     threads = PARAMS["hisat_threads"]
     log = outfile + ".log"
     out_name = outfile[:-len(".gz")]
 
-    #queue options
-    to_cluster= True #this is the default
+    # queue options
+    to_cluster = True  # this is the default
     job_threads = threads
     job_options = "-l mem_free=4G"
 
     if PARAMS["paired"]:
-        reads_two = reads_one.replace(".1.",".2.")
+        reads_two = reads_one.replace(".1.", ".2.")
         fastq_input = "-1 " + reads_one + " -2 " + reads_two
     else:
         fastq_input = "-U " + reads_one
-    
+
     statement = '''hisat
                       -x %(index)s
                       %(fastq_input)s
@@ -254,7 +269,7 @@ def hisatFirstPass(infiles, outfile):
                    &> %(log)s;
                    checkpoint;
                    gzip %(out_name)s;
-                 ''' % locals()          
+                 ''' % locals()
 
     P.run()
 
@@ -264,7 +279,7 @@ def novelHisatSpliceSites(infiles, outfile):
     '''Collect the novel splice sites into a single file'''
 
     junction_files = " ".join(infiles)
-    
+
     statement = '''zcat %(junction_files)s
                    | sort -k1,1 | uniq
                    > %(outfile)s
@@ -272,34 +287,32 @@ def novelHisatSpliceSites(infiles, outfile):
 
     P.run()
 
-    
-   
+
 @transform(glob.glob("data.dir/" + fastq_pattern),
-          regex(r".*/(.*).fastq.*.gz"),
-          add_inputs(knownHisatSpliceSites, novelHisatSpliceSites),
-          r"hisat.dir/\1.bam")
+           regex(r".*/(.*).fastq.*.gz"),
+           add_inputs(knownHisatSpliceSites, novelHisatSpliceSites),
+           r"hisat.dir/\1.bam")
 def hisatAlignments(infiles, outfile):
     '''Align reads using hisat with known and novel junctions'''
 
     reads_one, known_splice_sites, novel_splice_sites = infiles
-   
+
     out_sam = P.getTempFilename()
     index = PARAMS["hisat_index"]
     threads = PARAMS["hisat_threads"]
     log = outfile + ".log"
     outname = outfile[:-len(".bam")]
 
-    to_cluster= True
+    to_cluster = True
     job_threads = threads
     job_options = "-l mem_free=4G"
 
     if PARAMS["paired"]:
-        reads_two = reads_one.replace(".1.",".2.")
+        reads_two = reads_one.replace(".1.", ".2.")
         fastq_input = "-1 " + reads_one + " -2 " + reads_two
     else:
         fastq_input = "-U " + reads_one
 
-    
     statement = '''hisat
                       -x %(index)s
                       %(fastq_input)s
@@ -310,13 +323,13 @@ def hisatAlignments(infiles, outfile):
                       -S %(out_sam)s
                    &> %(log)s;
                    checkpoint;
-                   samtools view -bS %(out_sam)s 
+                   samtools view -bS %(out_sam)s
                    | samtools sort - %(outname)s >>%(log)s;
                    checkpoint;
                    samtools index %(outfile)s;
                    checkpoint;
                    rm %(out_sam)s;
-                 ''' % locals()          
+                 ''' % locals()
 
     P.run()
 
@@ -326,39 +339,39 @@ def mapping():
     '''mapping target'''
     pass
 
-    
 
-###############################################################################
-############# (2) Quantification of gene expression ###########################
-###############################################################################
+# ########################################################################### #
+# ################ (2) Quantification of gene expression #################### #
+# ########################################################################### #
 
-######################## Geneset Definition ###################################        
-
+# ------------------------- Geneset Definition ------------------------------ #
 
 @follows(mkdir("annotations.dir"))
 @files((os.path.join(PARAMS["annotations_dir"],
                      PARAMS["annotations_ensembl_geneset"]),
         PARAMS["annotations_ercc92_geneset"]),
-        "annotations.dir/ens_ercc_geneset.gtf.gz")
+       "annotations.dir/ens_ercc_geneset.gtf.gz")
 def prepareEnsemblERCC92GTF(infiles, outfile):
         '''Preparation of geneset for quantitation.
-           ERCC92 GTF entries are appended to 
+           ERCC92 GTF entries are appended to
            the protein coding entries from Ensembl geneset_all'''
 
         ensembl, ercc = infiles
 
         outname = outfile[:-len(".gz")]
-        
-        statement = ''' zgrep 'gene_biotype "protein_coding"' %(ensembl)s > %(outname)s;
+
+        statement = ''' zgrep 'gene_biotype "protein_coding"' %(ensembl)s
+                        > %(outname)s;
                         checkpoint;
                         zcat %(ercc)s >> %(outname)s;
                         checkpoint;
-                        gzip %(outname)s;                                                                   
+                        gzip %(outname)s;
                     '''
         P.run()
 
-########################## Read Counting ######################################
-        
+
+# ----------------------------- Read Counting ------------------------------- #
+
 @follows(mkdir("htseq.dir"))
 @transform(hisatAlignments,
            regex(r".*/(.*).bam"),
@@ -369,13 +382,14 @@ def runHTSeq(infiles, outfile):
     bamfile, gtf = infiles
     statement = ''' htseq-count
                         -f bam
-                        -r pos                                                                         
-                        -s no                                                                          
+                        -r pos
+                        -s no
                         -t exon
-                        --quiet                                                                        
-                        %(bamfile)s %(gtf)s >                                                          
+                        --quiet
+                        %(bamfile)s %(gtf)s >
                         %(outfile)s; ''' % locals()
     P.run()
+
 
 @merge(runHTSeq,
        "htseq.dir/htseq_counts.load")
@@ -386,16 +400,16 @@ def loadHTSeqCounts(infiles, outfile):
                              has_titles=False,
                              cat="track",
                              header="track,gene_id,counts",
-                             options = '-i "gene_id"')
-        
-###################### Copynumber estimation ##################################
-     
+                             options='-i "gene_id"')
+
+
+# ---------------------- Copynumber estimation ------------------------------ #
+
 @follows(mkdir("cuffquant.dir"))
 @transform(hisatAlignments,
            regex(r".*/(.*).bam"),
            add_inputs(prepareEnsemblERCC92GTF),
            r"cuffquant.dir/\1.log")
-
 def cuffQuant(infiles, outfile):
     '''Per sample quantification using cuffquant'''
 
@@ -405,18 +419,18 @@ def cuffQuant(infiles, outfile):
     # a unique output directory for each sample is required
     output_dir = outfile[:-len(".log")]
 
-    job_threads = PARAMS["cufflinks_cuffquant_threads"] # 4
+    job_threads = PARAMS["cufflinks_cuffquant_threads"]  # 4
 
     to_cluster = True
 
-    genome_multifasta = os.path.join(PARAMS["annotations_genome_dir"], 
+    genome_multifasta = os.path.join(PARAMS["annotations_genome_dir"],
                                      PARAMS["genome"]+".fasta")
 
     gtf = P.getTempFilename()
-    
+
     statement = '''zcat %(geneset)s > %(gtf)s;
-                   checkpoint; 
-                   cuffquant 
+                   checkpoint;
+                   cuffquant
                            --output-dir %(output_dir)s
                            --num-threads %(job_threads)s
                            --multi-read-correct
@@ -436,29 +450,29 @@ def cuffQuant(infiles, outfile):
 
 @follows(mkdir("cuffnorm.dir"), cuffQuant)
 @merge([prepareEnsemblERCC92GTF, cuffQuant],
-       "cuffnorm.dir/cuffnorm.log")         
+       "cuffnorm.dir/cuffnorm.log")
 def cuffNorm(infiles, outfile):
     '''Calculate FPKMs using cuffNorm'''
 
     # parse the infiles
     geneset = infiles[0]
 
-    cxb_files = " ".join( [ f[:-len(".log")] + "/abundances.cxb" 
-                            for f in infiles[1:] ] )
+    cxb_files = " ".join([f[:-len(".log")] + "/abundances.cxb"
+                          for f in infiles[1:]])
 
     # get the output directory and cell labels
     output_dir = os.path.dirname(outfile)
 
-    labels  = ",".join( [f.split("/")[1]
-                         for f in cxb_files.split(" ")] )
+    labels = ",".join([f.split("/")[1]
+                       for f in cxb_files.split(" ")])
 
     job_options = "-l mem_free=8G"
-    job_threads = PARAMS["cufflinks_cuffnorm_threads"] # 16
+    job_threads = PARAMS["cufflinks_cuffnorm_threads"]
 
     gtf = P.getTempFilename()
-    
+
     statement = ''' zcat %(geneset)s > %(gtf)s;
-                    checkpoint; 
+                    checkpoint;
                     cuffnorm
                         --output-dir %(output_dir)s
                         --num-threads=%(job_threads)s
@@ -479,11 +493,11 @@ def cuffNorm(infiles, outfile):
            ".load")
 def loadCuffNorm(infile, outfile):
     '''load the fpkm table from cuffnorm into the database'''
-    
+
     fpkm_table = os.path.dirname(infile) + "/genes.fpkm_table"
-    
+
     P.load(fpkm_table, outfile,
-           options = '-i "gene_id"')
+           options='-i "gene_id"')
 
 
 @follows(mkdir("annotations.dir"))
@@ -494,7 +508,7 @@ def loadERCC92Info(infile, outfile):
 
     P.load(infile, outfile, options='-i "gene_id"')
 
-    
+
 @follows(mkdir("copy.number.dir"))
 @transform(cuffQuant,
            regex(r".*/(.*).log"),
@@ -505,34 +519,31 @@ def estimateCopyNumber(infiles, outfile):
     '''Estimate copy numbers based on standard
        curves constructed from the spike-ins'''
 
-    
-    P.submit(os.path.join(code_dir,"PipelineScRnaseq.py"),
-                          "estimateCopyNumber", 
-                          infiles=infiles,
-                          outfiles=outfile,
-                          params=[code_dir])
+    P.submit(os.path.join(code_dir, "PipelineScRnaseq.py"),
+             "estimateCopyNumber",
+             infiles=infiles,
+             outfiles=outfile,
+             params=[code_dir])
 
-   
+
 @merge(estimateCopyNumber, "copy.number.dir/copynumber.load")
 def loadCopyNumber(infiles, outfile):
     '''load the copy number estimations to the database'''
-    
-    P.concatenateAndLoad(infiles, outfile, 
+
+    P.concatenateAndLoad(infiles, outfile,
                          regex_filename=".*/(.*).copynumber",
-                         options = '-i "gene_id"')    
+                         options='-i "gene_id"')
 
 
 @follows(loadCopyNumber, loadHTSeqCounts)
 def quantitation():
     '''quantitation target'''
     pass
-    
-###############################################################################
-################# (3) Post-mapping Quality Control ############################
-###############################################################################
 
 
-
+# ########################################################################### #
+# ################ (3) Post-mapping Quality Control ######################### #
+# ########################################################################### #
 
 @follows(mkdir("qc.dir/rnaseq.metrics.dir/"))
 @transform(hisatAlignments,
@@ -543,17 +554,17 @@ def collectRnaSeqMetrics(infile, outfile):
 
     picard_out = P.getTempFilename()
     picard_options = PARAMS["picard_collectrnaseqmetrics_options"]
-    
+
     geneset_flat = PARAMS["picard_geneset_flat"]
     strand_specificity = PARAMS["picard_strand_specificity"]
     validation_stringency = PARAMS["picard_validation_stringency"]
 
     job_threads = PARAMS["picard_threads"]
-    job_options="-l mem_free=" + PARAMS["picard_memory"]
+    job_options = "-l mem_free=" + PARAMS["picard_memory"]
 
     coverage_out = outfile[:-len(".metrics")] + ".cov.hist"
     chart_out = outfile[:-len(".metrics")] + ".cov.pdf"
-    
+
     statement = '''CollectRnaSeqMetrics
                    I=%(infile)s
                    REF_FLAT=%(geneset_flat)s
@@ -566,7 +577,7 @@ def collectRnaSeqMetrics(infile, outfile):
                    grep . %(picard_out)s | grep -v "#" | head -n2
                    > %(outfile)s;
                    checkpoint;
-                   grep . %(picard_out)s 
+                   grep . %(picard_out)s
                    | grep -A 102 "## HISTOGRAM"
                    | grep -v "##"
                    > %(coverage_out)s;
@@ -576,6 +587,7 @@ def collectRnaSeqMetrics(infile, outfile):
 
     P.run()
 
+
 @merge(collectRnaSeqMetrics,
        "qc.dir/qc_rnaseq_metrics.load")
 def loadCollectRnaSeqMetrics(infiles, outfile):
@@ -584,7 +596,8 @@ def loadCollectRnaSeqMetrics(infiles, outfile):
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename=".*/.*/(.*).rnaseq.metrics",
                          cat="cell",
-                         options = '-i "cell"')
+                         options='-i "cell"')
+
 
 @transform(collectRnaSeqMetrics,
            suffix(".rnaseq.metrics"),
@@ -594,13 +607,15 @@ def threePrimeBias(infile, outfile):
        from the picard coverage histogram'''
 
     coverage_histogram = infile[:-len(".metrics")] + ".cov.hist"
-    
+
     df = pd.read_csv(coverage_histogram, sep="\t")
 
-    x="normalized_position"
-    cov="All_Reads.normalized_coverage"
-    
-    bias = np.mean(df[cov][(df[x]>70) & (df[x]<90)]) / np.mean(df[cov][(df[x]>20) & (df[x]<90)])
+    x = "normalized_position"
+    cov = "All_Reads.normalized_coverage"
+
+    three_prime_coverage = np.mean(df[cov][(df[x] > 70) & (df[x] < 90)])
+    transcript_body_coverage = np.mean(df[cov][(df[x] > 20) & (df[x] < 90)])
+    bias = three_prime_coverage / transcript_body_coverage
 
     with open(outfile, "w") as out_file:
         out_file.write("three_prime_bias\n")
@@ -615,16 +630,16 @@ def loadThreePrimeBias(infiles, outfile):
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename=".*/.*/(.*).three.prime.bias",
                          cat="cell",
-                         options = '-i "cell"')
+                         options='-i "cell"')
 
- 
+
 @follows(mkdir("qc.dir/library.complexity.dir/"))
 @transform(hisatAlignments,
            regex(r".*/(.*).bam"),
-           r"qc.dir/library.complexity.dir/\1.library.complexity")    
+           r"qc.dir/library.complexity.dir/\1.library.complexity")
 def estimateLibraryComplexity(infile, outfile):
     '''Run Picard EstimateLibraryComplexity on the bam files'''
-   
+
     if PARAMS["paired"]:
         picard_out = P.getTempFilename()
         picard_options = PARAMS["picard_estimatelibrarycomplexity_options"]
@@ -633,7 +648,7 @@ def estimateLibraryComplexity(infile, outfile):
         validation_stringency = PARAMS["picard_validation_stringency"]
 
         job_threads = PARAMS["picard_threads"]
-        job_options="-l mem_free=" + PARAMS["picard_memory"]
+        job_options = "-l mem_free=" + PARAMS["picard_memory"]
 
         statement = '''EstimateLibraryComplexity
                        I=%(infile)s
@@ -646,12 +661,13 @@ def estimateLibraryComplexity(infile, outfile):
                        checkpoint;
                        rm %(picard_out)s;
                     ''' % locals()
-        
+
     else:
         statement = '''echo "Not compatible with SE data"
                        > %(outfile)s'''
 
     P.run()
+
 
 @merge(estimateLibraryComplexity,
        "qc.dir/qc_library_complexity.load")
@@ -662,35 +678,33 @@ def loadEstimateLibraryComplexity(infiles, outfile):
         P.concatenateAndLoad(infiles, outfile,
                              regex_filename=".*/.*/(.*).library.complexity",
                              cat="cell",
-                             options = '-i "cell"')
+                             options='-i "cell"')
     else:
-        statement = '''echo "Not compatible with SE data" 
+        statement = '''echo "Not compatible with SE data"
                        > %(outfile)s'''
         P.run()
 
 
-    
-
 @follows(mkdir("qc.dir/alignment.summary.metrics.dir/"))
 @transform(hisatAlignments,
            regex(r".*/(.*).bam"),
-           r"qc.dir/alignment.summary.metrics.dir/\1.alignment.summary.metrics")    
+           (r"qc.dir/alignment.summary.metrics.dir"
+            r"/\1.alignment.summary.metrics"))
 def alignmentSummaryMetrics(infile, outfile):
     '''Run Picard AlignmentSummaryMetrics on the bam files'''
 
     picard_out = P.getTempFilename()
     picard_options = PARAMS["picard_alignmentsummarymetric_options"]
-    
+
     strand_specificity = PARAMS["picard_strand_specificity"]
     validation_stringency = PARAMS["picard_validation_stringency"]
 
     job_threads = PARAMS["picard_threads"]
-    job_options="-l mem_free=" + PARAMS["picard_memory"]
+    job_options = "-l mem_free=" + PARAMS["picard_memory"]
 
-    reference_sequence= os.path.join(PARAMS["annotations_genome_dir"],
-                                     PARAMS["genome"] + ".fasta")
-                                    
-    
+    reference_sequence = os.path.join(PARAMS["annotations_genome_dir"],
+                                      PARAMS["genome"] + ".fasta")
+
     statement = '''CollectAlignmentSummaryMetrics
                    I=%(infile)s
                    O=%(picard_out)s
@@ -706,6 +720,7 @@ def alignmentSummaryMetrics(infile, outfile):
 
     P.run()
 
+
 @merge(alignmentSummaryMetrics,
        "qc.dir/qc_alignment_summary_metrics.load")
 def loadAlignmentSummaryMetrics(infiles, outfile):
@@ -714,34 +729,46 @@ def loadAlignmentSummaryMetrics(infiles, outfile):
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename=".*/.*/(.*).alignment.summary.metrics",
                          cat="cell",
-                         options = '-i "cell"')
+                         options='-i "cell"')
 
-@follows(mkdir("qc.dir/uniq.mapped.reads.dir"))
+
+@follows(mkdir("qc.dir/spike.vs.genome.dir"))
 @transform(hisatAlignments,
            regex(r".*/(.*).bam"),
-           r"qc.dir/uniq.mapped.reads.dir/\1.uniq.mapped.reads")
-def SpikeVsGenome(infile, outfile):
+           r"qc.dir/spike.vs.genome.dir/\1.uniq.mapped.reads")
+def spikeVsGenome(infile, outfile):
     '''Summarise the number of reads mapping uniquely to spike-ins and genome.
        Compute the ratio of reads mapping to spike-ins vs genome.
        Only uniquely mapping reads are considered'''
-    statement= ''' echo -e "uniq_mapping_reads_genome\\tuniq_mapping_reads_spike\\tfraction_spike" > %(outfile)s;
-                   checkpoint;
-                   samtools view %(infile)s 
-                   | grep NH:i:1 
-                   | awk -v column=$3 '{OFS="\\t"} '/chr*/'{genome+=1} '/ERCC*/'{ercc+=1} END {frac=ercc/(ercc+genome);print ercc,genome,frac}' >> %(outfile)s
-               ''' % locals()
+
+    header = "\\t".join(["nreads_uniq_map_genome", "nreads_uniq_map_spike",
+                        "fraction_spike"])
+
+    statement = ''' echo -e "%(header)s" > %(outfile)s;
+                    checkpoint;
+                    samtools view %(infile)s
+                    | grep NH:i:1
+                    | awk 'BEGIN{OFS="\\t";ercc=0;genome=0};
+                           $3~/chr*/{genome+=1};
+                           $3~/ERCC*/{ercc+=1};
+                           END{frac=ercc/(ercc+genome);print ercc,genome,frac}'
+                    >> %(outfile)s
+                ''' % locals()
     P.run()
 
-@merge(SpikeVsGenome,
-       "qc.dir/qc_uniquely_mapped_genome_spike.load")
+
+@merge(spikeVsGenome,
+       "qc.dir/qc_spike_vs_genome.load")
 def loadSpikeVsGenome(infiles, outfile):
-    '''Load reads uniquely mapping to genome or spike-ins and fraction of spike-ins to a single db table'''
+    '''Load number of reads uniquely mapping to genome & spike-ins
+       and fraction of spike-ins to a single db table'''
+
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename=".*/.*/(.*).uniq.mapped.reads",
                          cat="cell",
                          options='-i "cell"')
 
-#???
+
 @follows(mkdir("qc.dir/"))
 @files(loadCopyNumber,
        "qc.dir/number.genes.detected")
@@ -749,44 +776,50 @@ def numberGenesDetected(infile, outfile):
     '''Count no genes detected at copynumer > 0 in each cell'''
 
     table = infile.split("/")[-1][:-len(".load")]
-    
-    sqlstat = '''select * from %(table)s where gene_id like "ENS%%"''' % locals()
-    
+
+    sqlstat = '''select *
+                 from %(table)s
+                 where gene_id like "ENS%%"
+              ''' % locals()
+
     df = DB.fetch_DataFrame(sqlstat, PARAMS["database_name"])
     df2 = df.pivot(index="gene_id", columns="track", values="copy_number")
     n_expressed = df2.apply(lambda x: np.sum([1 for y in x if y > 0]))
-    
+
     n_expressed.to_csv(outfile, sep="\t")
 
 
 @files(numberGenesDetected,
-      "qc.dir/qc_no_genes.load")
+       "qc.dir/qc_no_genes.load")
 def loadNumberGenesDetected(infile, outfile):
     '''load the numbers of genes expressed to the db'''
 
     P.load(infile, outfile,
            options='-i "cell" -H "cell,no_genes"')
-    
+
 
 @follows(mkdir("qc.dir/fraction.spliced.dir/"))
 @transform(hisatAlignments,
            regex(r".*/(.*).bam"),
-           r"qc.dir/fraction.spliced.dir/\1.fraction.spliced")        
+           r"qc.dir/fraction.spliced.dir/\1.fraction.spliced")
 def fractionReadsSpliced(infile, outfile):
     '''Compute fraction of reads containing a splice junction.
        * paired-endedness is ignored
        * only uniquely mapping reads are considered'''
 
-    statement='''echo "fraction_spliced" > %(outfile)s;
-                 checkpoint;
-                 samtools view %(infile)s 
-                 | grep NH:i:1 
-                 | cut -f 6
-                 | awk '{if(index($1,"N")==0){us+=1}else{s+=1}}END{print s/(us+s)}'
-                 >> %(outfile)s
-               ''' % locals()
+    statement = '''echo "fraction_spliced" > %(outfile)s;
+                   checkpoint;
+                   samtools view %(infile)s
+                   | grep NH:i:1
+                   | cut -f 6
+                   | awk '{if(index($1,"N")==0){us+=1}
+                           else{s+=1}}
+                          END{print s/(us+s)}'
+                   >> %(outfile)s
+                 ''' % locals()
 
     P.run()
+
 
 @merge(fractionReadsSpliced,
        "qc.dir/qc_fraction_spliced.load")
@@ -796,17 +829,48 @@ def loadFractionReadsSpliced(infiles, outfile):
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename=".*/.*/(.*).fraction.spliced",
                          cat="cell",
-                         options = '-i "cell"')
+                         options='-i "cell"')
 
 
-@merge([loadCollectRnaSeqMetrics,
+@follows(mkdir("annotations.dir"))
+@merge(hisatAlignments,
+       "annotations.dir/sample.information.txt")
+def sampleInformation(infiles, outfile):
+    '''make a database table containing per-cell sample information.'''
+
+    name_field_list = PARAMS["name_field_titles"]
+    name_fields = name_field_list.strip().split(",")
+    header = ["\t".join(["cell"] + name_fields)]
+
+    sep = PARAMS["name_field_separator"]
+
+    contents = []
+    for infile in infiles:
+        sample_name = os.path.basename(infile)[:-len(".bam")]
+        contents.append("\t".join([sample_name] + sample_name.split(sep)))
+
+    with open(outfile, "w") as of:
+        of.write("\n".join(header + contents))
+
+
+@transform(sampleInformation,
+           suffix(".txt"),
+           ".load")
+def loadSampleInformation(infile, outfile):
+    '''load the sample information table to the db'''
+
+    P.load(infile, outfile)
+
+
+@merge([loadSampleInformation,
+        loadCollectRnaSeqMetrics,
         loadThreePrimeBias,
         loadEstimateLibraryComplexity,
         loadSpikeVsGenome,
         loadFractionReadsSpliced,
         loadNumberGenesDetected,
         loadAlignmentSummaryMetrics],
-       "qc.dir/qc_summary.txt")       
+       "qc.dir/qc_summary.txt")
 def qcSummary(infiles, outfile):
     '''create a summary table of relevant QC metrics'''
 
@@ -818,7 +882,7 @@ def qcSummary(infiles, outfile):
                               ESTIMATED_LIBRARY_SIZE as library_size,
                            '''
         pcat = "PAIR"
-        
+
     else:
         exclude = ["qc_library_complexity"]
         optional_columns = ''
@@ -834,33 +898,42 @@ def qcSummary(infiles, outfile):
         join_stat += "left join " + table + "\n"
         join_stat += "on " + t1 + ".cell=" + table + ".cell\n"
 
-        
-    stat_start = '''select distinct %(t1)s.cell, 
-                                   fraction_spliced, 
-                                   fraction_spike, 
-                                   no_genes, 
-                                   three_prime_bias as three_prime_bias,
-                                   uniq_mapping_reads_genome,
-                                   uniq_mapping_reads_spike,
-                                   %(optional_columns)s
-                                   PCT_MRNA_BASES as percent_mrna,
-                                   PCT_CODING_BASES as percent_coding,
-                                   PCT_PF_READS_ALIGNED as percent_reads_aligned,
-                                   TOTAL_READS as total_reads,
-                                   PCT_PF_READS as pct_pf_reads,
-                                   PCT_PF_READS_ALIGNED as pct_pf_reads_aligned,
-                                   PCT_READS_ALIGNED_IN_PAIRS as pct_reads_aligned_in_pairs
+    name_fields = PARAMS["name_field_titles"].strip()
+
+    stat_start = '''select distinct %(name_fields)s,
+                                    %(t1)s.cell,
+                                    fraction_spliced,
+                                    fraction_spike,
+                                    no_genes,
+                                    three_prime_bias
+                                       as three_prime_bias,
+                                    nreads_uniq_map_genome,
+                                    nreads_uniq_map_spike,
+                                    %(optional_columns)s
+                                    PCT_MRNA_BASES
+                                       as percent_mrna,
+                                    PCT_CODING_BASES
+                                       as percent_coding,
+                                    PCT_PF_READS_ALIGNED
+                                       as percent_reads_aligned,
+                                    TOTAL_READS
+                                       as total_reads,
+                                    PCT_PF_READS
+                                       as pct_pf_reads,
+                                    PCT_PF_READS_ALIGNED
+                                       as pct_pf_reads_aligned,
+                                    PCT_READS_ALIGNED_IN_PAIRS
+                                       as pct_reads_aligned_in_pairs
                    from %(t1)s
                 ''' % locals()
 
-
     where_stat = '''where qc_alignment_summary_metrics.CATEGORY="%(pcat)s"
                  ''' % locals()
-    
+
     statement = "\n".join([stat_start, join_stat, where_stat])
 
     print statement
-    
+
     df = DB.fetch_DataFrame(statement, PARAMS["database_name"])
     df.to_csv(outfile, sep="\t", index=False)
 
@@ -873,16 +946,34 @@ def loadQCSummary(infile, outfile):
 
     P.load(infile, outfile)
 
-    
+
 @follows(loadQCSummary)
 def qc():
     '''target for executing qc'''
     pass
-    
-    
-# ---------------------------------------------------
-# Generic pipeline tasks
-@follows(mapping, quantitation, qc)
+
+
+# ########################################################################### #
+# ########################## Copy Notebooks ################################# #
+# ########################################################################### #
+
+@follows(mkdir("notebook.dir"))
+@transform(glob.glob(os.path.join(os.path.dirname(__file__),
+                                  "pipeline_notebooks",
+                                  os.path.basename(__file__)[:-len(".py")],
+                                  "*")),
+           regex(r".*/(.*)"),
+           r"notebook.dir/\1")
+def notebooks(infile, outfile):
+    '''Utility function to copy the notebooks from the source directory
+       to the working directory'''
+
+    shutil.copy(infile, outfile)
+
+
+# --------------------- < generic pipeline tasks > -------------------------- #
+
+@follows(mapping, quantitation, qc, notebooks)
 def full():
     pass
 
