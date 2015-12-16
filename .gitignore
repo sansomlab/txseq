@@ -1,0 +1,5 @@
+# ignore python compilation files
+*.py[cod]
+
+# ignore temporary files from emacs/vim
+*~
