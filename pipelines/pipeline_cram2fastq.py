@@ -35,7 +35,7 @@ Overview
 ========
 
 This pipeline coverts Sanger CRAM files to fastq.gz,
-quality trims and reconciles the fastq files
+optionally quality trimming and reconciling the fastq files
 
 Usage
 =====
