@@ -187,6 +187,12 @@ else:
     code_dir = PARAMS["code_dir"]
 
 
+if PARAMS["paired"]:
+        fastq_pattern = "*.fastq.1.gz"
+else:
+        fastq_pattern = "*.fastq.gz"
+
+
 # ------------------------- < utility functions > --------------------------- #
 
 def connect():
@@ -214,36 +220,14 @@ def connect():
 # ######################### (1) Read Mapping ################################ #
 # ########################################################################### #
 
-@follows(mkdir("annotations.dir"))
-@files(os.path.join(PARAMS["annotations_dir"],
-                    "ensembl.dir",
-                    "geneset_all.gtf.gz"),
-       "annotations.dir/known.splice.sites.hisat.txt")
-def knownHisatSpliceSites(infile, outfile):
-    '''Prepare known splice junctions for hisat.
-       Note that the ERCC spike-ins are not spliced'''
-
-    statement = '''extract_splice_sites.py <(zcat %(infile)s)
-                   > %(outfile)s''' % locals()
-
-    P.run()
-
-
-if PARAMS["paired"]:
-    fastq_pattern = "*.fastq.1.gz"
-else:
-    fastq_pattern = "*.fastq.gz"
-
-
 @follows(mkdir("hisat.dir/first.pass.dir"))
 @transform(glob.glob("data.dir/" + fastq_pattern),
            regex(r".*/(.*).fastq.*.gz"),
-           add_inputs(knownHisatSpliceSites),
            r"hisat.dir/first.pass.dir/\1.novel.splice.sites.txt.gz")
-def hisatFirstPass(infiles, outfile):
+def hisatFirstPass(infile, outfile):
     '''Run a first hisat pass to identify novel splice sites'''
 
-    reads_one, splice_sites = infiles
+    reads_one = infile
 
     index = PARAMS["hisat_index"]
     threads = PARAMS["hisat_threads"]
@@ -261,18 +245,17 @@ def hisatFirstPass(infiles, outfile):
     else:
         fastq_input = "-U " + reads_one
 
-    statement = '''hisat
+    statement = '''%(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
                       --threads %(threads)s
-                      --known-splicesite-infile %(splice_sites)s
                       --novel-splicesite-outfile %(out_name)s
                       %(hisat_options)s
                       -S /dev/null
                    &> %(log)s;
                    checkpoint;
                    gzip %(out_name)s;
-                 ''' % locals()
+                 '''
 
     P.run()
 
@@ -293,12 +276,12 @@ def novelHisatSpliceSites(infiles, outfile):
 
 @transform(glob.glob("data.dir/" + fastq_pattern),
            regex(r".*/(.*).fastq.*.gz"),
-           add_inputs(knownHisatSpliceSites, novelHisatSpliceSites),
+           add_inputs(novelHisatSpliceSites),
            r"hisat.dir/\1.bam")
 def hisatAlignments(infiles, outfile):
     '''Align reads using hisat with known and novel junctions'''
 
-    reads_one, known_splice_sites, novel_splice_sites = infiles
+    reads_one, novel_splice_sites = infiles
 
     out_sam = P.getTempFilename()
     index = PARAMS["hisat_index"]
@@ -316,11 +299,10 @@ def hisatAlignments(infiles, outfile):
     else:
         fastq_input = "-U " + reads_one
 
-    statement = '''hisat
+    statement = '''%(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
                       --threads %(threads)s
-                      --known-splicesite-infile %(known_splice_sites)s
                       --novel-splicesite-infile %(novel_splice_sites)s
                       %(hisat_options)s
                       -S %(out_sam)s
@@ -332,7 +314,7 @@ def hisatAlignments(infiles, outfile):
                    samtools index %(outfile)s;
                    checkpoint;
                    rm %(out_sam)s;
-                 ''' % locals()
+                 '''
 
     P.run()
 
@@ -916,11 +898,6 @@ def qcSummary(infiles, outfile):
 
     t1 = tables[0]
 
-    join_stat = ""
-    for table in tables[1:]:
-        join_stat += "left join " + table + "\n"
-        join_stat += "on " + t1 + ".cell=" + table + ".cell\n"
-
     name_fields = PARAMS["name_field_titles"].strip()
 
     stat_start = '''select distinct %(name_fields)s,
@@ -949,6 +926,11 @@ def qcSummary(infiles, outfile):
                                        as pct_reads_aligned_in_pairs
                    from %(t1)s
                 ''' % locals()
+
+    join_stat = ""
+    for table in tables[1:]:
+        join_stat += "left join " + table + "\n"
+        join_stat += "on " + t1 + ".cell=" + table + ".cell\n"
 
     where_stat = '''where qc_alignment_summary_metrics.CATEGORY="%(pcat)s"
                  ''' % locals()
