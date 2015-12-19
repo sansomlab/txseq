@@ -1,29 +1,18 @@
 import sys
-import glob
-import gzip
 import os
-import itertools
 import re
-import math
-import types
-import collections
-import time
-import optparse
-import shutil
 import sqlite3
-import pandas as pd
-import rpy2.robjects as R
 
-import pandas.rpy.common as pdcom
 import pandas as pd
 import numpy as np
-import scipy as scipy
-from scipy import stats
 
 import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
-import CGAT.Database as DB
 import CGATPipelines.Pipeline as P
+
+import rpy2.robjects as R
+from rpy2.robjects import pandas2ri
+pandas2ri.activate()
+
 
 PARAMS = P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
@@ -64,7 +53,7 @@ def estimateCopyNumber(infiles, outfile, params):
 
     # spikedf = PU.fetch_DataFrame(statement, PARAMS["database"])
     spikedf = pd.read_sql(statement, con)
-    rspikedf = pdcom.convert_to_r_dataframe(spikedf)
+    # rspikedf = pdcom.convert_to_r_dataframe(spikedf)
 
     # ## retrieve the data to normalise
     statement = ''' select tracking_id as gene_id, %(col_name)s as FPKM
@@ -72,7 +61,7 @@ def estimateCopyNumber(infiles, outfile, params):
                 ''' % locals()
 
     fpkms = pd.read_sql(statement, con)
-    rfpkms = pdcom.convert_to_r_dataframe(fpkms)
+    # rfpkms = pdcom.convert_to_r_dataframe(fpkms)
 
     script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
 
@@ -85,4 +74,4 @@ def estimateCopyNumber(infiles, outfile, params):
 
     plotname, outfile = [os.path.abspath(x) for x in [plotname, outfile]]
 
-    r.normalise_to_spikes(rspikedf, rfpkms, plotname, outfile, track)
+    r.normalise_to_spikes(spikedf, fpkms, plotname, outfile, track)
