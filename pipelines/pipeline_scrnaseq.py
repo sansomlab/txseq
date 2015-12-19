@@ -79,8 +79,8 @@ Input files
 
 * BAMs
 
-- location specified in the "bam_dir" variable in pipeline.ini
-  (default = "data.dir")
+- location of directory containing the BAM files is specified in the
+  "bam_dir" variable in pipeline.ini (default = "data.dir")
 
 * Naming
 
@@ -99,10 +99,10 @@ example fastq file name:
 
 mTEChi-wildtype-plate1-A-1.fastq.1.gz
 
-Where BAM files are provided, the mapper can be indicated in the suffix, e.g.
+Where BAM files are provided, the mapper is expected as a suffix, i.e.
 
-mTEChi-wildtype-plate1-A-1.gnsap.bam
-mTEChi-wildtype-plate1-A-1.gnsap.bam.bai
+mTEChi-wildtype-plate1-A-1.gsnap.bam
+mTEChi-wildtype-plate1-A-1.gsnap.bam.bai
 
 * ERCC information
 
@@ -894,9 +894,9 @@ def sampleInformation(infiles, outfile):
         else:
             cell_name_fields, mapper = cell, "unknown"
 
-        contents.append("\t".join([cell]
-                                  + cell_name_fields.split(sep)
-                                  + [mapper]))
+        contents.append("\t".join([cell] +
+                                  cell_name_fields.split(sep) +
+                                  [mapper]))
 
     with open(outfile, "w") as of:
         of.write("\n".join(header + contents))
