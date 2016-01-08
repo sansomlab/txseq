@@ -832,6 +832,34 @@ def loadNumberGenesDetected(infile, outfile):
 
     P.load(infile, outfile,
            options='-i "cell" -H "cell,no_genes"')
+# ------------------------- No. genes detected htseq-count ------------------------------ #
+
+@files(loadHTSeqCounts,
+       "qc.dir/number.genes.detected.htseq")
+def numberGenesDetectedHTSeq(infile, outfile):
+    '''Count no genes detected by htseq-count at counts > 0 in each cell'''
+
+    table = infile.split("/")[-1][:-len(".load")]
+
+    sqlstat = '''select *
+                 from %(table)s
+                 where gene_id like "ENS%%"
+              ''' % locals()
+
+    df = DB.fetch_DataFrame(sqlstat, PARAMS["database_name"])
+    df2 = df.pivot(index="gene_id", columns="track", values="counts")
+    n_expressed = df2.apply(lambda x: np.sum([1 for y in x if y > 0]))
+
+    n_expressed.to_csv(outfile, sep="\t")
+
+
+@files(numberGenesDetectedHTSeq,
+       "qc.dir/qc_no_genes_htseq.load")
+def loadNumberGenesDetectedHTSeq(infile, outfile):
+    '''load the numbers of genes expressed to the db'''
+
+    P.load(infile, outfile,
+           options='-i "cell" -H "cell,no_genes_htseq"')
 
 
 # --------------------- Fraction of spliced reads --------------------------- #
@@ -918,6 +946,7 @@ def loadSampleInformation(infile, outfile):
         loadSpikeVsGenome,
         loadFractionReadsSpliced,
         loadNumberGenesDetected,
+        loadNumberGenesDetectedHTSeq,
         loadAlignmentSummaryMetrics],
        "qc.dir/qc_summary.txt")
 def qcSummary(infiles, outfile):
@@ -950,6 +979,7 @@ def qcSummary(infiles, outfile):
                                     fraction_spliced,
                                     fraction_spike,
                                     no_genes,
+                                    no_genes_htseq,
                                     three_prime_bias
                                        as three_prime_bias,
                                     nreads_uniq_map_genome,
