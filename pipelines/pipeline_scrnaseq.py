@@ -826,13 +826,14 @@ def numberGenesDetected(infile, outfile):
 
 
 @files(numberGenesDetected,
-       "qc.dir/qc_no_genes.load")
+       "qc.dir/qc_no_genes_cufflinks.load")
 def loadNumberGenesDetected(infile, outfile):
     '''load the numbers of genes expressed to the db'''
 
     P.load(infile, outfile,
-           options='-i "cell" -H "cell,no_genes"')
-# ------------------------- No. genes detected htseq-count ------------------------------ #
+           options='-i "cell" -H "cell,no_genes_cufflinks"')
+# ------------------ No. genes detected htseq-count ---------------------- #
+
 
 @files(loadHTSeqCounts,
        "qc.dir/number.genes.detected.htseq")
@@ -978,7 +979,7 @@ def qcSummary(infiles, outfile):
                                     %(t1)s.cell,
                                     fraction_spliced,
                                     fraction_spike,
-                                    no_genes,
+                                    no_genes_cufflinks,
                                     no_genes_htseq,
                                     three_prime_bias
                                        as three_prime_bias,
