@@ -811,7 +811,7 @@ def loadSpikeVsGenome(infiles, outfile):
 def numberGenesDetected(infile, outfile):
     '''Count no genes detected at copynumer > 0 in each cell'''
 
-    table = infile.split("/")[-1][:-len(".load")]
+    table = P.toTable(infile)
 
     sqlstat = '''select *
                  from %(table)s
@@ -840,7 +840,7 @@ def loadNumberGenesDetected(infile, outfile):
 def numberGenesDetectedHTSeq(infile, outfile):
     '''Count no genes detected by htseq-count at counts > 0 in each cell'''
 
-    table = infile.split("/")[-1][:-len(".load")]
+    table = P.toTable(infile)
 
     sqlstat = '''select *
                  from %(table)s
