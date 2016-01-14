@@ -3,3 +3,6 @@
 
 # ignore temporary files from emacs/vim
 *~
+
+# ignore checkpoint folder from ipython notebooks
+.ipynb_checkpoints/
