@@ -763,7 +763,76 @@ def loadAlignmentSummaryMetrics(infiles, outfile):
                          options='-i "cell"')
 
 
+# ------------------- Picard: InsertSizeMetrics ----------------------- #
+
+@follows(mkdir("qc.dir/insert.size.metrics.dir/"))
+@transform(collectBAMs,
+           regex(r".*/(.*).bam"),
+           [(r"qc.dir/insert.size.metrics.dir"
+             r"/\1.insert.size.metrics.summary"),
+            (r"qc.dir/insert.size.metrics.dir"
+             r"/\1.insert.size.metrics.histogram")])
+def insertSizeMetrics(infile, outfiles):
+    '''Run Picard InsertSizeMetrics on the bam files'''
+
+    picard_summary, picard_histogram = outfiles
+    print picard_histogram
+    picard_out = P.getTempFilename()
+    picard_histogram_pdf = picard_histogram + ".pdf"
+    picard_options = PARAMS["picard_insertsizemetric_options"]
+
+    job_threads = PARAMS["picard_threads"]
+    job_options = "-l mem_free=" + PARAMS["picard_memory"]
+
+    validation_stringency = PARAMS["picard_validation_stringency"]
+    reference_sequence = os.path.join(PARAMS["annotations_genome_dir"],
+                                      PARAMS["genome"] + ".fasta")
+
+    statement = '''CollectInsertSizeMetrics
+                   I=%(infile)s
+                   O=%(picard_out)s
+                   HISTOGRAM_FILE=%(picard_histogram_pdf)s
+                   VALIDATION_STRINGENCY=%(validation_stringency)s
+                   REFERENCE_SEQUENCE=%(reference_sequence)s
+                   %(picard_options)s;
+                   checkpoint;
+                   grep "MEDIAN_INSERT_SIZE" -A 1 %(picard_out)s
+                   > %(picard_summary)s;
+                   checkpoint;
+                   sed -e '1,/## HISTOGRAM/d' %(picard_out)s
+                   > %(picard_histogram)s;
+                ''' % locals()
+
+    P.run()
+
+
+@merge(insertSizeMetrics,
+       ["qc.dir/qc_insert_size_metrics.load",
+        "qc.dir/qc_insert_size_histogram.load"])
+def loadInsertSizeMetrics(infiles, outfiles):
+    '''load the insert size metrics to a single table in the db'''
+
+    picard_histogram = []
+    picard_summary = []
+    for metrics in infiles:
+        picard_histogram.append(metrics[1])
+        picard_summary.append(metrics[0])
+
+    load_summary, load_histogram = outfiles
+
+    P.concatenateAndLoad(picard_summary, load_summary,
+                         regex_filename=(".*/.*/"
+                                         "(.*).insert.size.metrics.summary"),
+                         cat="cell",
+                         options='')
+    P.concatenateAndLoad(picard_histogram, load_histogram,
+                         regex_filename=(".*/.*/"
+                                         "(.*).insert.size.metrics.histogram"),
+                         cat="cell",
+                         options='-i "insert_size" -e')
+
 # -------------- No. reads mapping to spike-ins vs genome ------------------- #
+
 
 @follows(mkdir("qc.dir/spike.vs.genome.dir"))
 @transform(collectBAMs,
@@ -832,6 +901,8 @@ def loadNumberGenesDetected(infile, outfile):
 
     P.load(infile, outfile,
            options='-i "cell" -H "cell,no_genes_cufflinks"')
+
+
 # ------------------ No. genes detected htseq-count ---------------------- #
 
 
@@ -999,7 +1070,9 @@ def qcSummary(infiles, outfile):
                                     PCT_PF_READS_ALIGNED
                                        as pct_pf_reads_aligned,
                                     PCT_READS_ALIGNED_IN_PAIRS
-                                       as pct_reads_aligned_in_pairs
+                                       as pct_reads_aligned_in_pairs,
+                                    MEDIAN_INSERT_SIZE
+                                       as median_insert_size
                    from %(t1)s
                 ''' % locals()
 
@@ -1048,7 +1121,7 @@ def notebooks(infile, outfile):
     shutil.copy(infile, outfile)
 
 
-@follows(quantitation, qc, notebooks)
+@follows(quantitation, qc, notebooks, loadInsertSizeMetrics)
 def full():
     pass
 
