@@ -813,7 +813,6 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
                        > %(outfile)s'''
 
 
-
 @merge(insertSizeMetricsAndHistograms,
        "qc.dir/qc_insert_size_metrics.load")
 def loadInsertSizeMetrics(infiles, outfile):
@@ -823,8 +822,8 @@ def loadInsertSizeMetrics(infiles, outfile):
         picard_summaries = [x[0] for x in infiles]
 
         P.concatenateAndLoad(picard_summaries, outfile,
-                             regex_filename=(".*/.*/"
-                                             "(.*).insert.size.metrics.summary"),
+                             regex_filename=(".*/.*/(.*)"
+                                             ".insert.size.metrics.summary"),
                              cat="cell",
                              options='')
 
@@ -842,14 +841,14 @@ def loadInsertSizeHistograms(infiles, outfile):
         picard_histograms = [x[1] for x in infiles]
 
         P.concatenateAndLoad(picard_histograms, outfile,
-                             regex_filename=(".*/.*/"
-                                             "(.*).insert.size.metrics.histogram"),
+                             regex_filename=(".*/.*/(.*)"
+                                             ".insert.size.metrics.histogram"),
                              cat="cell",
                              options='-i "insert_size" -e')
 
     else:
-    statement = '''echo "Not compatible with SE data"
-                   > %(outfile)s'''
+        statement = '''echo "Not compatible with SE data"
+                       > %(outfile)s'''
 
 
 # -------------- No. reads mapping to spike-ins vs genome ------------------- #
