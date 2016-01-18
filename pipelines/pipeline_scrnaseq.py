@@ -773,10 +773,10 @@ def loadAlignmentSummaryMetrics(infiles, outfile):
             (r"qc.dir/insert.size.metrics.dir"
              r"/\1.insert.size.metrics.histogram")])
 def insertSizeMetrics(infile, outfiles):
-    '''Run Picard InsertSizeMetrics on the bam files'''
+    '''Run Picard InsertSizeMetrics on the BAM files to
+       collect summary metrics and histograms'''
 
     picard_summary, picard_histogram = outfiles
-    print picard_histogram
     picard_out = P.getTempFilename()
     picard_histogram_pdf = picard_histogram + ".pdf"
     picard_options = PARAMS["picard_insertsizemetric_options"]
@@ -801,6 +801,8 @@ def insertSizeMetrics(infile, outfiles):
                    checkpoint;
                    sed -e '1,/## HISTOGRAM/d' %(picard_out)s
                    > %(picard_histogram)s;
+                   checkpoint;
+                   rm %(picard_out)s;
                 ''' % locals()
 
     P.run()
@@ -810,13 +812,9 @@ def insertSizeMetrics(infile, outfiles):
        ["qc.dir/qc_insert_size_metrics.load",
         "qc.dir/qc_insert_size_histogram.load"])
 def loadInsertSizeMetrics(infiles, outfiles):
-    '''load the insert size metrics to a single table in the db'''
+    '''load the insert size metrics to a single tables in the db'''
 
-    picard_histogram = []
-    picard_summary = []
-    for metrics in infiles:
-        picard_histogram.append(metrics[1])
-        picard_summary.append(metrics[0])
+    picard_histogram, picard_summary = zip(*infiles)
 
     load_summary, load_histogram = outfiles
 
@@ -825,14 +823,15 @@ def loadInsertSizeMetrics(infiles, outfiles):
                                          "(.*).insert.size.metrics.summary"),
                          cat="cell",
                          options='')
+
     P.concatenateAndLoad(picard_histogram, load_histogram,
                          regex_filename=(".*/.*/"
                                          "(.*).insert.size.metrics.histogram"),
                          cat="cell",
                          options='-i "insert_size" -e')
 
-# -------------- No. reads mapping to spike-ins vs genome ------------------- #
 
+# -------------- No. reads mapping to spike-ins vs genome ------------------- #
 
 @follows(mkdir("qc.dir/spike.vs.genome.dir"))
 @transform(collectBAMs,
