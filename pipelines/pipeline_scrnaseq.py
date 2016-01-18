@@ -1019,10 +1019,16 @@ def loadSampleInformation(infile, outfile):
         loadFractionReadsSpliced,
         loadNumberGenesDetected,
         loadNumberGenesDetectedHTSeq,
-        loadAlignmentSummaryMetrics],
+        loadAlignmentSummaryMetrics,
+        loadInsertSizeMetrics],
        "qc.dir/qc_summary.txt")
 def qcSummary(infiles, outfile):
     '''create a summary table of relevant QC metrics'''
+
+    loadInsertSizes = infiles[-1]
+    insert_size_summary = loadInsertSizes[0]
+    infiles.pop()
+    infiles.append(insert_size_summary)
 
     # Some QC metrics are specific to paired end data
     if PAIRED:
@@ -1038,6 +1044,7 @@ def qcSummary(infiles, outfile):
         optional_columns = ''
         pcat = "UNPAIRED"
 
+    print infiles
     tables = [P.toTable(x) for x in infiles
               if P.toTable(x) not in exclude]
 
@@ -1121,7 +1128,7 @@ def notebooks(infile, outfile):
     shutil.copy(infile, outfile)
 
 
-@follows(quantitation, qc, notebooks, loadInsertSizeMetrics)
+@follows(quantitation, qc, notebooks)
 def full():
     pass
 
