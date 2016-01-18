@@ -776,36 +776,42 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
     '''Run Picard InsertSizeMetrics on the BAM files to
        collect summary metrics and histograms'''
 
-    picard_summary, picard_histogram = outfiles
-    picard_out = P.getTempFilename()
-    picard_histogram_pdf = picard_histogram + ".pdf"
-    picard_options = PARAMS["picard_insertsizemetric_options"]
+    if PAIRED:
+        picard_summary, picard_histogram = outfiles
+        picard_out = P.getTempFilename()
+        picard_histogram_pdf = picard_histogram + ".pdf"
+        picard_options = PARAMS["picard_insertsizemetric_options"]
 
-    job_threads = PARAMS["picard_threads"]
-    job_options = "-l mem_free=" + PARAMS["picard_memory"]
+        job_threads = PARAMS["picard_threads"]
+        job_options = "-l mem_free=" + PARAMS["picard_memory"]
 
-    validation_stringency = PARAMS["picard_validation_stringency"]
-    reference_sequence = os.path.join(PARAMS["annotations_genome_dir"],
-                                      PARAMS["genome"] + ".fasta")
+        validation_stringency = PARAMS["picard_validation_stringency"]
+        reference_sequence = os.path.join(PARAMS["annotations_genome_dir"],
+                                          PARAMS["genome"] + ".fasta")
 
-    statement = '''CollectInsertSizeMetrics
-                   I=%(infile)s
-                   O=%(picard_out)s
-                   HISTOGRAM_FILE=%(picard_histogram_pdf)s
-                   VALIDATION_STRINGENCY=%(validation_stringency)s
-                   REFERENCE_SEQUENCE=%(reference_sequence)s
-                   %(picard_options)s;
-                   checkpoint;
-                   grep "MEDIAN_INSERT_SIZE" -A 1 %(picard_out)s
-                   > %(picard_summary)s;
-                   checkpoint;
-                   sed -e '1,/## HISTOGRAM/d' %(picard_out)s
-                   > %(picard_histogram)s;
-                   checkpoint;
-                   rm %(picard_out)s;
-                ''' % locals()
+        statement = '''CollectInsertSizeMetrics
+                       I=%(infile)s
+                       O=%(picard_out)s
+                       HISTOGRAM_FILE=%(picard_histogram_pdf)s
+                       VALIDATION_STRINGENCY=%(validation_stringency)s
+                       REFERENCE_SEQUENCE=%(reference_sequence)s
+                       %(picard_options)s;
+                       checkpoint;
+                       grep "MEDIAN_INSERT_SIZE" -A 1 %(picard_out)s
+                       > %(picard_summary)s;
+                       checkpoint;
+                       sed -e '1,/## HISTOGRAM/d' %(picard_out)s
+                       > %(picard_histogram)s;
+                       checkpoint;
+                       rm %(picard_out)s;
+                    ''' % locals()
 
-    P.run()
+        P.run()
+
+    else:
+        statement = '''echo "Not compatible with SE data"
+                       > %(outfile)s'''
+
 
 
 @merge(insertSizeMetricsAndHistograms,
@@ -813,13 +819,18 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
 def loadInsertSizeMetrics(infiles, outfile):
     '''load the insert size metrics to a single table'''
 
-    picard_summaries = [x[0] for x in infiles]
+    if PAIRED:
+        picard_summaries = [x[0] for x in infiles]
 
-    P.concatenateAndLoad(picard_summaries, outfile,
-                         regex_filename=(".*/.*/"
-                                         "(.*).insert.size.metrics.summary"),
-                         cat="cell",
-                         options='')
+        P.concatenateAndLoad(picard_summaries, outfile,
+                             regex_filename=(".*/.*/"
+                                             "(.*).insert.size.metrics.summary"),
+                             cat="cell",
+                             options='')
+
+    else:
+        statement = '''echo "Not compatible with SE data"
+                       > %(outfile)s'''
 
 
 @merge(insertSizeMetricsAndHistograms,
@@ -827,13 +838,18 @@ def loadInsertSizeMetrics(infiles, outfile):
 def loadInsertSizeHistograms(infiles, outfile):
     '''load the histograms to a single table'''
 
-    picard_histograms = [x[1] for x in infiles]
+    if PAIRED:
+        picard_histograms = [x[1] for x in infiles]
 
-    P.concatenateAndLoad(picard_histograms, outfile,
-                         regex_filename=(".*/.*/"
-                                         "(.*).insert.size.metrics.histogram"),
-                         cat="cell",
-                         options='-i "insert_size" -e')
+        P.concatenateAndLoad(picard_histograms, outfile,
+                             regex_filename=(".*/.*/"
+                                             "(.*).insert.size.metrics.histogram"),
+                             cat="cell",
+                             options='-i "insert_size" -e')
+
+    else:
+    statement = '''echo "Not compatible with SE data"
+                   > %(outfile)s'''
 
 
 # -------------- No. reads mapping to spike-ins vs genome ------------------- #
@@ -1043,7 +1059,7 @@ def qcSummary(infiles, outfile):
         pcat = "PAIR"
 
     else:
-        exclude = ["qc_library_complexity"]
+        exclude = ["qc_library_complexity", "qc_insert_size_metrics"]
         paired_columns = ''
         pcat = "UNPAIRED"
 
