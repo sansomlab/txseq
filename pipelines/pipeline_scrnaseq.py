@@ -1044,7 +1044,6 @@ def qcSummary(infiles, outfile):
         optional_columns = ''
         pcat = "UNPAIRED"
 
-    print infiles
     tables = [P.toTable(x) for x in infiles
               if P.toTable(x) not in exclude]
 
