@@ -772,7 +772,7 @@ def loadAlignmentSummaryMetrics(infiles, outfile):
              r"/\1.insert.size.metrics.summary"),
             (r"qc.dir/insert.size.metrics.dir"
              r"/\1.insert.size.metrics.histogram")])
-def insertSizeMetrics(infile, outfiles):
+def insertSizeMetricsAndHistograms(infile, outfiles):
     '''Run Picard InsertSizeMetrics on the BAM files to
        collect summary metrics and histograms'''
 
@@ -808,23 +808,28 @@ def insertSizeMetrics(infile, outfiles):
     P.run()
 
 
-@merge(insertSizeMetrics,
-       ["qc.dir/qc_insert_size_metrics.load",
-        "qc.dir/qc_insert_size_histogram.load"])
-def loadInsertSizeMetrics(infiles, outfiles):
-    '''load the insert size metrics to a single tables in the db'''
+@merge(insertSizeMetricsAndHistograms,
+       "qc.dir/qc_insert_size_metrics.load")
+def loadInsertSizeMetrics(infiles, outfile):
+    '''load the insert size metrics to a single table'''
 
-    picard_histogram, picard_summary = zip(*infiles)
+    picard_summaries = [x[0] for x in infiles]
 
-    load_summary, load_histogram = outfiles
-
-    P.concatenateAndLoad(picard_summary, load_summary,
+    P.concatenateAndLoad(picard_summaries, outfile,
                          regex_filename=(".*/.*/"
                                          "(.*).insert.size.metrics.summary"),
                          cat="cell",
                          options='')
 
-    P.concatenateAndLoad(picard_histogram, load_histogram,
+
+@merge(insertSizeMetricsAndHistograms,
+       "qc.dir/qc_insert_size_histogram.load")
+def loadInsertSizeHistograms(infiles, outfile):
+    '''load the histograms to a single table'''
+
+    picard_histograms = [x[1] for x in infiles]
+
+    P.concatenateAndLoad(picard_histograms, outfile,
                          regex_filename=(".*/.*/"
                                          "(.*).insert.size.metrics.histogram"),
                          cat="cell",
@@ -1024,23 +1029,22 @@ def loadSampleInformation(infile, outfile):
 def qcSummary(infiles, outfile):
     '''create a summary table of relevant QC metrics'''
 
-    loadInsertSizes = infiles[-1]
-    insert_size_summary = loadInsertSizes[0]
-    infiles.pop()
-    infiles.append(insert_size_summary)
-
     # Some QC metrics are specific to paired end data
     if PAIRED:
         exclude = []
-        optional_columns = '''READ_PAIRS_EXAMINED as no_pairs,
+        paired_columns = '''READ_PAIRS_EXAMINED as no_pairs,
                               PERCENT_DUPLICATION as percent_duplication,
                               ESTIMATED_LIBRARY_SIZE as library_size,
+                              PCT_READS_ALIGNED_IN_PAIRS
+                                       as pct_reads_aligned_in_pairs,
+                              MEDIAN_INSERT_SIZE
+                                       as median_insert_size
                            '''
         pcat = "PAIR"
 
     else:
         exclude = ["qc_library_complexity"]
-        optional_columns = ''
+        paired_columns = ''
         pcat = "UNPAIRED"
 
     tables = [P.toTable(x) for x in infiles
@@ -1061,7 +1065,7 @@ def qcSummary(infiles, outfile):
                                        as three_prime_bias,
                                     nreads_uniq_map_genome,
                                     nreads_uniq_map_spike,
-                                    %(optional_columns)s
+                                    %(paired_columns)s,
                                     PCT_MRNA_BASES
                                        as percent_mrna,
                                     PCT_CODING_BASES
@@ -1073,11 +1077,7 @@ def qcSummary(infiles, outfile):
                                     PCT_ADAPTER
                                        as pct_adapter,
                                     PCT_PF_READS_ALIGNED
-                                       as pct_pf_reads_aligned,
-                                    PCT_READS_ALIGNED_IN_PAIRS
-                                       as pct_reads_aligned_in_pairs,
-                                    MEDIAN_INSERT_SIZE
-                                       as median_insert_size
+                                       as pct_pf_reads_aligned
                    from %(t1)s
                 ''' % locals()
 
@@ -1104,7 +1104,7 @@ def loadQCSummary(infile, outfile):
     P.load(infile, outfile)
 
 
-@follows(loadQCSummary)
+@follows(loadQCSummary, loadInsertSizeHistograms)
 def qc():
     '''target for executing qc'''
     pass
