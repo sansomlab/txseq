@@ -806,11 +806,16 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
                        rm %(picard_out)s;
                     ''' % locals()
 
-        P.run()
-
     else:
+        picard_summary, picard_histogram = outfiles
+
         statement = '''echo "Not compatible with SE data"
-                       > %(outfile)s'''
+                       > %(picard_summary)s;
+                       checkpoint;
+                       echo "Not compatible with SE data"
+                       > %(picard_histogram)s
+                    ''' % locals()
+    P.run()
 
 
 @merge(insertSizeMetricsAndHistograms,
@@ -829,7 +834,9 @@ def loadInsertSizeMetrics(infiles, outfile):
 
     else:
         statement = '''echo "Not compatible with SE data"
-                       > %(outfile)s'''
+                       > %(outfile)s
+                    ''' % locals()
+        P.run()
 
 
 @merge(insertSizeMetricsAndHistograms,
@@ -848,7 +855,9 @@ def loadInsertSizeHistograms(infiles, outfile):
 
     else:
         statement = '''echo "Not compatible with SE data"
-                       > %(outfile)s'''
+                       > %(outfile)s
+                    ''' % locals()
+        P.run()
 
 
 # -------------- No. reads mapping to spike-ins vs genome ------------------- #
@@ -1053,7 +1062,7 @@ def qcSummary(infiles, outfile):
                               PCT_READS_ALIGNED_IN_PAIRS
                                        as pct_reads_aligned_in_pairs,
                               MEDIAN_INSERT_SIZE
-                                       as median_insert_size
+                                       as median_insert_size,
                            '''
         pcat = "PAIR"
 
@@ -1080,7 +1089,7 @@ def qcSummary(infiles, outfile):
                                        as three_prime_bias,
                                     nreads_uniq_map_genome,
                                     nreads_uniq_map_spike,
-                                    %(paired_columns)s,
+                                    %(paired_columns)s
                                     PCT_MRNA_BASES
                                        as percent_mrna,
                                     PCT_CODING_BASES
