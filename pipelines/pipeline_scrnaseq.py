@@ -1091,11 +1091,11 @@ def qcSummary(infiles, outfile):
                                     nreads_uniq_map_spike,
                                     %(paired_columns)s
                                     PCT_MRNA_BASES
-                                       as percent_mrna,
+                                       as pct_mrna,
                                     PCT_CODING_BASES
-                                       as percent_coding,
+                                       as pct_coding,
                                     PCT_PF_READS_ALIGNED
-                                       as percent_reads_aligned,
+                                       as pct_reads_aligned,
                                     TOTAL_READS
                                        as total_reads,
                                     PCT_ADAPTER
