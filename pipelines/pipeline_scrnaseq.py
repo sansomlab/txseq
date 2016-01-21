@@ -1100,7 +1100,7 @@ def qcSummary(infiles, outfile):
                                        as total_reads,
                                     PCT_ADAPTER
                                        as pct_adapter,
-                                    PF_HQ_ALIGNED_READS/PF_READS*100
+                                    PF_HQ_ALIGNED_READS*1.0/PF_READS*100
                                        as pct_pf_reads_aligned_hq
                    from %(t1)s
                 ''' % locals()
