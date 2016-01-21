@@ -1057,7 +1057,7 @@ def qcSummary(infiles, outfile):
     if PAIRED:
         exclude = []
         paired_columns = '''READ_PAIRS_EXAMINED as no_pairs,
-                              PERCENT_DUPLICATION as percent_duplication,
+                              PERCENT_DUPLICATION as pct_duplication,
                               ESTIMATED_LIBRARY_SIZE as library_size,
                               PCT_READS_ALIGNED_IN_PAIRS
                                        as pct_reads_aligned_in_pairs,
@@ -1100,7 +1100,7 @@ def qcSummary(infiles, outfile):
                                        as total_reads,
                                     PCT_ADAPTER
                                        as pct_adapter,
-                                    PF_HQ_ALIGNED_READS/PF_READS*100
+                                    PF_HQ_ALIGNED_READS*1.0/PF_READS*100
                                        as pct_pf_reads_aligned_hq
                    from %(t1)s
                 ''' % locals()
