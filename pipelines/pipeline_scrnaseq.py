@@ -279,6 +279,7 @@ def hisatFirstPass(infile, outfile):
     P.run()
 
 
+@follows(mkdir("annotations.dir"))
 @merge(hisatFirstPass, "annotations.dir/novel.splice.sites.hisat.txt")
 def novelHisatSpliceSites(infiles, outfile):
     '''Collect the novel splice sites into a single file'''
