@@ -1078,7 +1078,7 @@ def sampleInformation(infiles, outfile):
         else:
             cell_name_fields, mapper = cell, "unknown"
 
-        contents.append("\t".join([cell] +
+        contents.append("\t".join([cell_name_fields] +
                                   cell_name_fields.split(sep) +
                                   [mapper]))
 
