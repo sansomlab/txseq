@@ -232,19 +232,20 @@ def connect():
 # ########### Define endedness and strandedness parameters ################## #
 # ########################################################################### #
 
-
-if PARAMS["PAIRED"].lower() in ["1", "true", "yes"]:
+print PARAMS["paired"]
+if str(PARAMS["paired"]).lower() in ["1", "true", "yes"]:
     PAIRED = True
-elif PARMS["PAIRED"].lower() in ["0", "false", "no"]:
+elif str(PARAMS["paired"]).lower() in ["0", "false", "no"]:
     PAIRED = False
 else:
     raise ValueError("Endedness not recognised")
 
 
-STRAND = PARAMS["strandedness"].lower()
+STRAND = str(PARAMS["strandedness"]).lower()
 if STRAND not in ("none", "forward", "reverse"):
     raise ValueError("Strand not recognised")
 
+print STRAND
 if STRAND == "none":
     CUFFLINKS_STRAND = "fr-unstranded"
     HTSEQ_STRAND = "no"
@@ -284,6 +285,7 @@ if STRAND != "none":
 else:
     HISAT_STRAND_PARAM = ""
 
+print HISAT_STRAND_PARAM
 
 @follows(mkdir("hisat.dir/first.pass.dir"))
 @transform(glob.glob(os.path.join(PARAMS["fastq_dir"], fastq_pattern)),
@@ -310,12 +312,14 @@ def hisatFirstPass(infile, outfile):
     else:
         fastq_input = "-U " + reads_one
 
+    hisat_strand_param = HISAT_STRAND_PARAM
+
     statement = '''%(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
                       --threads %(threads)s
                       --novel-splicesite-outfile %(out_name)s
-                      %(HISAT_STRAND_PARAM)s
+                      %(hisat_strand_param)s
                       %(hisat_options)s
                       -S /dev/null
                    &> %(log)s;
@@ -336,7 +340,7 @@ def novelHisatSpliceSites(infiles, outfile):
     statement = '''zcat %(junction_files)s
                    | sort -k1,1 | uniq
                    > %(outfile)s
-                ''' % locals()
+                '''
 
     P.run()
 
