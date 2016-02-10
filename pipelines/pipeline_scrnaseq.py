@@ -228,16 +228,61 @@ def connect():
     return dbh
 
 
+# ########################################################################### #
+# ########### Define endedness and strandedness parameters ################## #
+# ########################################################################### #
+
+
+if PARAMS["PAIRED"].lower() in ["1", "true", "yes"]:
+    PAIRED = True
+elif PARMS["PAIRED"].lower() in ["0", "false", "no"]:
+    PAIRED = False
+else:
+    raise ValueError("Endedness not recognised")
+
+
+STRAND = PARAMS["strandedness"].lower()
+if STRAND not in ("none", "forward", "reverse"):
+    raise ValueError("Strand not recognised")
+
+if STRAND == "none":
+    CUFFLINKS_STRAND = "fr-unstranded"
+    HTSEQ_STRAND = "no"
+    PICARD_STRAND = "NONE"
+elif STRAND == "forward":
+    if PAIRED:
+        HISAT_STRAND = "FR"
+    else:
+        HISAT_STRAND = "F"
+    CUFFLINKS_STRAND = "fr-secondstrand"
+    HTSEQ_STRAND = "yes"
+    PICARD_STRAND = "FIRST_READ_TRANSCRIPTION_STRAND"
+elif STRAND == "reverse":
+    if PAIRED:
+        HISAT_STRAND = "RF"
+    else:
+        HISAT_STRAND = "R"
+    CUFFLINKS_STRAND = "fr-firststrand"
+    HTSEQ_STRAND = "reverse"
+    PICARD_STRAND = "SECOND_READ_TRANSCRIPTION_STRAND"
+
+
 # ---------------------- < specific pipeline tasks > ------------------------ #
 
 # ########################################################################### #
 # #################### (1) Read Mapping (optional) ########################## #
 # ########################################################################### #
 
-if PARAMS["fastq_paired"]:
+
+if PAIRED:
         fastq_pattern = "*.fastq.1.gz"
 else:
         fastq_pattern = "*.fastq.gz"
+
+if STRAND != "none":
+    HISAT_STRAND_PARAM = "--rna-strandedness %s" % HISAT_STRAND
+else:
+    HISAT_STRAND_PARAM = ""
 
 
 @follows(mkdir("hisat.dir/first.pass.dir"))
@@ -259,20 +304,18 @@ def hisatFirstPass(infile, outfile):
     job_threads = threads
     job_options = "-l mem_free=4G"
 
-    if PARAMS["fastq_paired"]:
+    if PAIRED:
         reads_two = reads_one.replace(".1.", ".2.")
         fastq_input = "-1 " + reads_one + " -2 " + reads_two
     else:
         fastq_input = "-U " + reads_one
-
-    if PARAMS["hisat_stranded"]:
-        hisat_options = " ".join([PARAMS["hisat_options"], PARAMS["hisat_strand_specificity"]])
 
     statement = '''%(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
                       --threads %(threads)s
                       --novel-splicesite-outfile %(out_name)s
+                      %(HISAT_STRAND_PARAM)s
                       %(hisat_options)s
                       -S /dev/null
                    &> %(log)s;
@@ -317,20 +360,18 @@ def hisatAlignments(infiles, outfile):
     job_threads = threads
     job_options = "-l mem_free=4G"
 
-    if PARAMS["fastq_paired"]:
+    if PAIRED:
         reads_two = reads_one.replace(".1.", ".2.")
         fastq_input = "-1 " + reads_one + " -2 " + reads_two
     else:
         fastq_input = "-U " + reads_one
-
-    if PARAMS["hisat_stranded"]:
-        hisat_options = " ".join([PARAMS["hisat_options"], PARAMS["hisat_strand_specificity"]])
 
     statement = '''%(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
                       --threads %(threads)s
                       --novel-splicesite-infile %(novel_splice_sites)s
+                      %(HISAT_STRAND_PARAM)s
                       %(hisat_options)s
                       -S %(out_sam)s
                    &> %(log)s;
@@ -358,11 +399,9 @@ def mapping():
 
 if PARAMS["input"] == "fastq":
     collectBAMs = hisatAlignments
-    PAIRED = PARAMS["fastq_paired"]
 
 elif PARAMS["input"] == "bam":
     collectBAMs = glob.glob(os.path.join(PARAMS["bam_dir"], "*.bam"))
-    PAIRED = PARAMS["bam_paired"]
 
 else:
     raise ValueError('Input type must be either "fastq" or "bam"')
@@ -411,7 +450,7 @@ def runHTSeq(infiles, outfile):
     statement = ''' htseq-count
                         -f bam
                         -r pos
-                        -s %(htseq_strand_specificity)s
+                        -s %(HTSEQ_STRAND)s
                         -t exon
                         --quiet
                         %(bamfile)s %(gtf)s >
@@ -462,7 +501,7 @@ def cuffQuant(infiles, outfile):
                            --output-dir %(output_dir)s
                            --num-threads %(job_threads)s
                            --multi-read-correct
-                           --library-type %(cufflinks_library_type)s
+                           --library-type %(CUFFLINKS_STRAND)s
                            --no-effective-length-correction
                            --max-bundle-frags 2000000
                            --max-mle-iterations 10000
@@ -504,7 +543,7 @@ def cuffNorm(infiles, outfile):
                     cuffnorm
                         --output-dir %(output_dir)s
                         --num-threads=%(job_threads)s
-                        --library-type %(cufflinks_library_type)s
+                        --library-type %(CUFFLINKS_STRAND)s
                         --total-hits-norm
                         --library-norm-method classic-fpkm
                         --labels %(labels)s
@@ -589,7 +628,6 @@ def collectRnaSeqMetrics(infile, outfile):
     picard_options = PARAMS["picard_collectrnaseqmetrics_options"]
 
     geneset_flat = PARAMS["picard_geneset_flat"]
-    strand_specificity = PARAMS["picard_strand_specificity"]
     validation_stringency = PARAMS["picard_validation_stringency"]
 
     job_threads = PARAMS["picard_threads"]
@@ -603,7 +641,7 @@ def collectRnaSeqMetrics(infile, outfile):
                    REF_FLAT=%(geneset_flat)s
                    O=%(picard_out)s
                    CHART=%(chart_out)s
-                   STRAND_SPECIFICITY=%(strand_specificity)s
+                   STRAND_SPECIFICITY=%(PICARD_STRAND)s
                    VALIDATION_STRINGENCY=%(validation_stringency)s
                    %(picard_options)s;
                    checkpoint;
@@ -681,7 +719,6 @@ def estimateLibraryComplexity(infile, outfile):
         picard_out = P.getTempFilename()
         picard_options = PARAMS["picard_estimatelibrarycomplexity_options"]
 
-        strand_specificity = PARAMS["picard_strand_specificity"]
         validation_stringency = PARAMS["picard_validation_stringency"]
 
         job_threads = PARAMS["picard_threads"]
@@ -734,8 +771,6 @@ def alignmentSummaryMetrics(infile, outfile):
 
     picard_out = P.getTempFilename()
     picard_options = PARAMS["picard_alignmentsummarymetric_options"]
-
-    strand_specificity = PARAMS["picard_strand_specificity"]
     validation_stringency = PARAMS["picard_validation_stringency"]
 
     job_threads = PARAMS["picard_threads"]
