@@ -282,7 +282,7 @@ else:
         fastq_pattern = "*.fastq.gz"
 
 if STRAND != "none":
-    HISAT_STRAND_PARAM = "--rna-strandedness %s" % HISAT_STRAND
+    HISAT_STRAND_PARAM = "--rna-strandness %s" % HISAT_STRAND
 else:
     HISAT_STRAND_PARAM = ""
 
