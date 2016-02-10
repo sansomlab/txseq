@@ -232,24 +232,24 @@ def connect():
 # ########### Define endedness and strandedness parameters ################## #
 # ########################################################################### #
 
-print PARAMS["paired"]
-if str(PARAMS["paired"]).lower() in ["1", "true", "yes"]:
+# determine endedness
+if str(PARAMS["paired"]).lower() in ("1", "true", "yes"):
     PAIRED = True
-elif str(PARAMS["paired"]).lower() in ["0", "false", "no"]:
+elif str(PARAMS["paired"]).lower() in ("0", "false", "no"):
     PAIRED = False
 else:
     raise ValueError("Endedness not recognised")
 
-
+# set options based on strandedness
 STRAND = str(PARAMS["strandedness"]).lower()
 if STRAND not in ("none", "forward", "reverse"):
     raise ValueError("Strand not recognised")
 
-print STRAND
 if STRAND == "none":
     CUFFLINKS_STRAND = "fr-unstranded"
     HTSEQ_STRAND = "no"
     PICARD_STRAND = "NONE"
+
 elif STRAND == "forward":
     if PAIRED:
         HISAT_STRAND = "FR"
@@ -258,6 +258,7 @@ elif STRAND == "forward":
     CUFFLINKS_STRAND = "fr-secondstrand"
     HTSEQ_STRAND = "yes"
     PICARD_STRAND = "FIRST_READ_TRANSCRIPTION_STRAND"
+
 elif STRAND == "reverse":
     if PAIRED:
         HISAT_STRAND = "RF"
@@ -285,7 +286,6 @@ if STRAND != "none":
 else:
     HISAT_STRAND_PARAM = ""
 
-print HISAT_STRAND_PARAM
 
 @follows(mkdir("hisat.dir/first.pass.dir"))
 @transform(glob.glob(os.path.join(PARAMS["fastq_dir"], fastq_pattern)),
@@ -370,12 +370,14 @@ def hisatAlignments(infiles, outfile):
     else:
         fastq_input = "-U " + reads_one
 
+    hisat_strand_param = HISAT_STRAND_PARAM
+
     statement = '''%(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
                       --threads %(threads)s
                       --novel-splicesite-infile %(novel_splice_sites)s
-                      %(HISAT_STRAND_PARAM)s
+                      %(hisat_strand_param)s
                       %(hisat_options)s
                       -S %(out_sam)s
                    &> %(log)s;
@@ -450,11 +452,14 @@ def prepareEnsemblERCC92GTF(infiles, outfile):
            r"htseq.dir/\1.counts")
 def runHTSeq(infiles, outfile):
     '''Run htseq-count'''
+
     bamfile, gtf = infiles
+    htseq_strand = HTSEQ_STRAND
+
     statement = ''' htseq-count
                         -f bam
                         -r pos
-                        -s %(HTSEQ_STRAND)s
+                        -s %(htseq_strand)s
                         -t exon
                         --quiet
                         %(bamfile)s %(gtf)s >
@@ -498,6 +503,7 @@ def cuffQuant(infiles, outfile):
                                      PARAMS["genome"]+".fasta")
 
     gtf = P.getTempFilename()
+    cufflinks_strand = CUFFLINKS_STRAND
 
     statement = '''zcat %(geneset)s > %(gtf)s;
                    checkpoint;
@@ -505,7 +511,7 @@ def cuffQuant(infiles, outfile):
                            --output-dir %(output_dir)s
                            --num-threads %(job_threads)s
                            --multi-read-correct
-                           --library-type %(CUFFLINKS_STRAND)s
+                           --library-type %(cufflinks_strand)s
                            --no-effective-length-correction
                            --max-bundle-frags 2000000
                            --max-mle-iterations 10000
@@ -541,13 +547,14 @@ def cuffNorm(infiles, outfile):
     job_threads = PARAMS["cufflinks_cuffnorm_threads"]
 
     gtf = P.getTempFilename()
+    cufflinks_strand = CUFFLINKS_STRAND
 
     statement = ''' zcat %(geneset)s > %(gtf)s;
                     checkpoint;
                     cuffnorm
                         --output-dir %(output_dir)s
                         --num-threads=%(job_threads)s
-                        --library-type %(CUFFLINKS_STRAND)s
+                        --library-type %(cufflinks_strand)s
                         --total-hits-norm
                         --library-norm-method classic-fpkm
                         --labels %(labels)s
@@ -640,12 +647,14 @@ def collectRnaSeqMetrics(infile, outfile):
     coverage_out = outfile[:-len(".metrics")] + ".cov.hist"
     chart_out = outfile[:-len(".metrics")] + ".cov.pdf"
 
+    picard_strand = PICARD_STRAND
+
     statement = '''CollectRnaSeqMetrics
                    I=%(infile)s
                    REF_FLAT=%(geneset_flat)s
                    O=%(picard_out)s
                    CHART=%(chart_out)s
-                   STRAND_SPECIFICITY=%(PICARD_STRAND)s
+                   STRAND_SPECIFICITY=%(picard_strand)s
                    VALIDATION_STRINGENCY=%(validation_stringency)s
                    %(picard_options)s;
                    checkpoint;
