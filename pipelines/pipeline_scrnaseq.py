@@ -38,6 +38,7 @@ This pipeline performs the follow tasks:
 
 (1) [optional] Mapping of reads using hisat
       - paired (default) or single end fastq files are expected as the input
+      - unstranded (default) or stranded fastq files are expected as the input
       - If data is already mapped position sorted, indexed BAM files can be
         provided instead.
       - See pipeline.ini and below for filename syntax guidance.
@@ -264,6 +265,9 @@ def hisatFirstPass(infile, outfile):
     else:
         fastq_input = "-U " + reads_one
 
+    if PARAMS["hisat_stranded"]:
+        hisat_options = " ".join([PARAMS["hisat_options"], PARAMS["hisat_strand_specificity"]])
+
     statement = '''%(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
@@ -318,6 +322,9 @@ def hisatAlignments(infiles, outfile):
         fastq_input = "-1 " + reads_one + " -2 " + reads_two
     else:
         fastq_input = "-U " + reads_one
+
+    if PARAMS["hisat_stranded"]:
+        hisat_options = " ".join([PARAMS["hisat_options"], PARAMS["hisat_strand_specificity"]])
 
     statement = '''%(hisat_executable)s
                       -x %(index)s
@@ -404,11 +411,11 @@ def runHTSeq(infiles, outfile):
     statement = ''' htseq-count
                         -f bam
                         -r pos
-                        -s no
+                        -s %(htseq_strand_specificity)s
                         -t exon
                         --quiet
                         %(bamfile)s %(gtf)s >
-                        %(outfile)s; ''' % locals()
+                        %(outfile)s; '''
     P.run()
 
 
@@ -455,16 +462,16 @@ def cuffQuant(infiles, outfile):
                            --output-dir %(output_dir)s
                            --num-threads %(job_threads)s
                            --multi-read-correct
-                           --library-type fr-unstranded
-                           --frag-bias-correct %(genome_multifasta)s
+                           --library-type %(cufflinks_library_type)s
                            --no-effective-length-correction
                            --max-bundle-frags 2000000
                            --max-mle-iterations 10000
                            --verbose
-                           %(gtf)s %(bam_file)s >& %(outfile)s;
+                           --frag-bias-correct %(genome_multifasta)s
+                            %(gtf)s %(bam_file)s >& %(outfile)s;
                     checkpoint;
                     rm %(gtf)s;
-                ''' % locals()
+                '''
 
     P.run()
 
@@ -497,14 +504,14 @@ def cuffNorm(infiles, outfile):
                     cuffnorm
                         --output-dir %(output_dir)s
                         --num-threads=%(job_threads)s
+                        --library-type %(cufflinks_library_type)s
                         --total-hits-norm
-                        --library-type=fr-unstranded
                         --library-norm-method classic-fpkm
                         --labels %(labels)s
                         %(gtf)s %(cxb_files)s > %(outfile)s;
                      checkpoint;
                      rm %(gtf)s;
-                ''' % locals()
+                '''
 
     P.run()
 
