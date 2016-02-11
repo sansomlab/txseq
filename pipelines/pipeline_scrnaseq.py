@@ -1065,8 +1065,8 @@ def sampleInformation(infiles, outfile):
     name_field_list = PARAMS["name_field_titles"]
     name_fields = name_field_list.strip().split(",")
     if "sample_id" in name_fields or "sample" in name_fields:
-        raise ValueError('"sample_name" and "sample" are reserved and cannot be'
-                         'used as name field titles')
+        raise ValueError('"sample_name" and "sample" are reserved and cannot'
+                         'be used as name field titles')
 
     header = ["\t".join(["sample_id", "sample"] + name_fields + ["mapper"])]
 
@@ -1186,7 +1186,6 @@ def loadQCSummary(infile, outfile):
     '''load summary to db'''
 
     P.load(infile, outfile)
-
 
 
 @follows(loadQCSummary, loadInsertSizeHistograms)
