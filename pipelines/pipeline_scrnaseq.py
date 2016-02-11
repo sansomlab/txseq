@@ -74,7 +74,7 @@ Input files
 
 * Fastqs
 
-- The pipeline expects sequence data from each cell in the form
+- The pipeline expects sequence data from each cell/sample in the form
   of single or paired-end fastq files to be present in the "fastq_dir"
   specificed in the pipeline.ini file (default = "data.dir")
 
@@ -88,22 +88,22 @@ Input files
 It is recommended that files are named according
 to the following convention (for plate-based single-cell data):
 
-source-condition-replicate-plate-row-column
+source_condition_replicate_plate_row_column
 
 An arbitrary number of fields can be specified, e.g. see the
 Pipeline.ini default:
 
-name_field_separator=-
+name_field_separator=_
 name_field_titles=source,condition,plate,row,column
 
 example fastq file name:
 
-mTEChi-wildtype-plate1-A-1.fastq.1.gz
+mTEChi_wildtype_plate1_A_1.fastq.1.gz
 
 Where BAM files are provided, the mapper is expected as a suffix, i.e.
 
-mTEChi-wildtype-plate1-A-1.gsnap.bam
-mTEChi-wildtype-plate1-A-1.gsnap.bam.bai
+mTEChi_wildtype_plate1_A_1.gsnap.bam
+mTEChi_wildtype_plate1_A_1.gsnap.bam.bai
 
 * ERCC information
 
@@ -537,7 +537,7 @@ def cuffNorm(infiles, outfile):
     cxb_files = " ".join([f[:-len(".log")] + "/abundances.cxb"
                           for f in infiles[1:]])
 
-    # get the output directory and cell labels
+    # get the output directory and sample labels
     output_dir = os.path.dirname(outfile)
 
     labels = ",".join([f.split("/")[1]
@@ -679,8 +679,8 @@ def loadCollectRnaSeqMetrics(infiles, outfile):
 
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename=".*/.*/(.*).rnaseq.metrics",
-                         cat="cell",
-                         options='-i "cell"')
+                         cat="sample_id",
+                         options='-i "sample_id"')
 
 
 # --------------------- Three prime bias analysis --------------------------- #
@@ -715,8 +715,8 @@ def loadThreePrimeBias(infiles, outfile):
 
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename=".*/.*/(.*).three.prime.bias",
-                         cat="cell",
-                         options='-i "cell"')
+                         cat="sample_id",
+                         options='-i "sample_id"')
 
 
 # ----------------- Picard: EstimateLibraryComplexity ----------------------- #
@@ -764,8 +764,8 @@ def loadEstimateLibraryComplexity(infiles, outfile):
     if PAIRED:
         P.concatenateAndLoad(infiles, outfile,
                              regex_filename=".*/.*/(.*).library.complexity",
-                             cat="cell",
-                             options='-i "cell"')
+                             cat="sample_id",
+                             options='-i "sample_id"')
     else:
         statement = '''echo "Not compatible with SE data"
                        > %(outfile)s'''
@@ -815,8 +815,8 @@ def loadAlignmentSummaryMetrics(infiles, outfile):
 
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename=".*/.*/(.*).alignment.summary.metrics",
-                         cat="cell",
-                         options='-i "cell"')
+                         cat="sample_id",
+                         options='-i "sample_id"')
 
 
 # ------------------- Picard: InsertSizeMetrics ----------------------- #
@@ -885,7 +885,7 @@ def loadInsertSizeMetrics(infiles, outfile):
         P.concatenateAndLoad(picard_summaries, outfile,
                              regex_filename=(".*/.*/(.*)"
                                              ".insert.size.metrics.summary"),
-                             cat="cell",
+                             cat="sample_id",
                              options='')
 
     else:
@@ -906,7 +906,7 @@ def loadInsertSizeHistograms(infiles, outfile):
         P.concatenateAndLoad(picard_histograms, outfile,
                              regex_filename=(".*/.*/(.*)"
                                              ".insert.size.metrics.histogram"),
-                             cat="cell",
+                             cat="sample_id",
                              options='-i "insert_size" -e')
 
     else:
@@ -952,8 +952,8 @@ def loadSpikeVsGenome(infiles, outfile):
 
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename=".*/.*/(.*).uniq.mapped.reads",
-                         cat="cell",
-                         options='-i "cell"')
+                         cat="sample_id",
+                         options='-i "sample_id"')
 
 
 # ------------------------- No. genes detected ------------------------------ #
@@ -962,7 +962,7 @@ def loadSpikeVsGenome(infiles, outfile):
 @files(loadCopyNumber,
        "qc.dir/number.genes.detected")
 def numberGenesDetected(infile, outfile):
-    '''Count no genes detected at copynumer > 0 in each cell'''
+    '''Count no genes detected at copynumer > 0 in each sample'''
 
     table = P.toTable(infile)
 
@@ -984,7 +984,7 @@ def loadNumberGenesDetected(infile, outfile):
     '''load the numbers of genes expressed to the db'''
 
     P.load(infile, outfile,
-           options='-i "cell" -H "cell,no_genes_cufflinks"')
+           options='-i "sample_id" -H "sample_id,no_genes_cufflinks"')
 
 
 # ------------------ No. genes detected htseq-count ---------------------- #
@@ -993,7 +993,7 @@ def loadNumberGenesDetected(infile, outfile):
 @files(loadHTSeqCounts,
        "qc.dir/number.genes.detected.htseq")
 def numberGenesDetectedHTSeq(infile, outfile):
-    '''Count no genes detected by htseq-count at counts > 0 in each cell'''
+    '''Count no genes detected by htseq-count at counts > 0 in each sample'''
 
     table = P.toTable(infile)
 
@@ -1015,7 +1015,7 @@ def loadNumberGenesDetectedHTSeq(infile, outfile):
     '''load the numbers of genes expressed to the db'''
 
     P.load(infile, outfile,
-           options='-i "cell" -H "cell,no_genes_htseq"')
+           options='-i "sample_id" -H "sample_id,no_genes_htseq"')
 
 
 # --------------------- Fraction of spliced reads --------------------------- #
@@ -1050,8 +1050,8 @@ def loadFractionReadsSpliced(infiles, outfile):
 
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename=".*/.*/(.*).fraction.spliced",
-                         cat="cell",
-                         options='-i "cell"')
+                         cat="sample_id",
+                         options='-i "sample_id"')
 
 
 # ---------------- Prepare a post-mapping QC summary ------------------------ #
@@ -1060,26 +1060,30 @@ def loadFractionReadsSpliced(infiles, outfile):
 @merge(collectBAMs,
        "annotations.dir/sample.information.txt")
 def sampleInformation(infiles, outfile):
-    '''make a database table containing per-cell sample information.'''
+    '''make a database table containing per-sample information.'''
 
     name_field_list = PARAMS["name_field_titles"]
     name_fields = name_field_list.strip().split(",")
-    header = ["\t".join(["cell"] + name_fields + ["mapper"])]
+    if "sample_id" in name_fields or "sample" in name_fields:
+        raise ValueError('"sample_name" and "sample" are reserved and cannot'
+                         'be used as name field titles')
+
+    header = ["\t".join(["sample_id", "sample"] + name_fields + ["mapper"])]
 
     sep = PARAMS["name_field_separator"]
 
     contents = []
     for infile in infiles:
 
-        cell = os.path.basename(infile)[:-len(".bam")]
+        sample_id = os.path.basename(infile)[:-len(".bam")]
 
-        if "." in cell:
-            cell_name_fields, mapper = cell.split(".", 1)
+        if "." in sample_id:
+            sample, mapper = sample_id.split(".", 1)
         else:
-            cell_name_fields, mapper = cell, "unknown"
+            sample, mapper = sample_id, "unknown"
 
-        contents.append("\t".join([cell_name_fields] +
-                                  cell_name_fields.split(sep) +
+        contents.append("\t".join([sample_id, sample] +
+                                  sample.split(sep) +
                                   [mapper]))
 
     with open(outfile, "w") as of:
@@ -1135,8 +1139,8 @@ def qcSummary(infiles, outfile):
     name_fields = PARAMS["name_field_titles"].strip()
 
     stat_start = '''select distinct %(name_fields)s,
-                                    mapper,
-                                    %(t1)s.cell,
+                                    sample_information.sample, mapper,
+                                    %(t1)s.sample_id,
                                     fraction_spliced,
                                     fraction_spike,
                                     no_genes_cufflinks,
@@ -1164,7 +1168,7 @@ def qcSummary(infiles, outfile):
     join_stat = ""
     for table in tables[1:]:
         join_stat += "left join " + table + "\n"
-        join_stat += "on " + t1 + ".cell=" + table + ".cell\n"
+        join_stat += "on " + t1 + ".sample_id=" + table + ".sample_id\n"
 
     where_stat = '''where qc_alignment_summary_metrics.CATEGORY="%(pcat)s"
                  ''' % locals()
