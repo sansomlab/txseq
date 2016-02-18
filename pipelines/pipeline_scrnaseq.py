@@ -75,13 +75,13 @@ Input files
 * Fastqs
 
 - The pipeline expects sequence data from each cell/sample in the form
-  of single or paired-end fastq files to be present in the "fastq_dir"
+  of single or paired-end fastq files to be present in the "input_dir"
   specificed in the pipeline.ini file (default = "data.dir")
 
 * BAMs
 
 - location of directory containing the BAM files is specified in the
-  "bam_dir" variable in pipeline.ini (default = "data.dir")
+  "input_dir" variable in pipeline.ini (default = "data.dir")
 
 * Naming
 
@@ -93,27 +93,33 @@ source_condition_replicate_plate_row_column
 An arbitrary number of fields can be specified, e.g. see the
 Pipeline.ini default:
 
-name_field_separator=_
-name_field_titles=source,condition,plate,row,column
+  name_field_titles=source,condition,plate,row,column
+
+Name fields *must be separated by underscores* (for SQL/R compatibility).
 
 example fastq file name:
 
-mTEChi_wildtype_plate1_A_1.fastq.1.gz
+  mTEChi_wildtype_plate1_A_1.fastq.1.gz
 
-Where BAM files are provided, the mapper is expected as a suffix, i.e.
+If the pipeline is being used to compare BAM files from different mappers,
+the mapper should be supplied as an extrat name field e.g.
 
-mTEChi_wildtype_plate1_A_1.gsnap.bam
-mTEChi_wildtype_plate1_A_1.gsnap.bam.bai
+  name_field_titles=source,condition,plate,row,column, mapper
+
+  mTEChi_wildtype_plate1_A_1_gsnap.bam
+  mTEChi_wildtype_plate1_A_1_gsnap.bam.bai
 
 * ERCC information
 
-The location of a table of ERCC spike in copy numbers should be
-provided in the pipeline.ini file.
+If spike-ins are used the location of a table containing the per cell
+ERCC spike in copy numbers should be provided in the pipeline.ini file.
 
 The expected structure (tab-delimited) is:
 
 gene_id|genebank_id|5prime_assay |3prime_assay |sequence|length|copies_per_cell
 ERCC-..|EF011072   |Ac03459943_a1|Ac03460039_a1|CGAT... |1059  |20324.7225
+
+Note that only the columns "gene_id" and "copies_per_cell" are required.
 
 
 Requirements
@@ -227,6 +233,31 @@ def connect():
 
     return dbh
 
+# ########################################################################### #
+# ###################### Sanity check filenames ############################# #
+# ########################################################################### #
+
+if PARAMS["input"].lower() == "fastq":
+    SUFFIX_PATTERN = "*.fastq"
+elif PARAMS["input"].lower() == "bam":
+    SUFFIX_PATTERN = "*.bam"
+else:
+    raise ValueError("this pipeline only supports fastq or bam files")
+
+input_files = glob.glob(os.path.join(PARAMS["input_dir"], SUFFIX_PATTERN))
+
+NAME_FIELD_TITLES = PARAMS["name_field_titles"]
+NAME_FIELD_COUNT = ",".split(NAME_FIELD_TITLES)
+
+for sample_filename in input_files:
+    sample_name = sample_filename.split(".")[0]
+    n_name_fields = sample_name.split("_")
+    if NAME_FIELD_COUNT != n_name_fields:
+        raise ValueError("%(sample_filename)s does not have the expected"
+                         " number of name fields (%(NAME_FIELD_TITLES)s)."
+                         " Note that name fields must be separated with"
+                         " underscores" % locals)
+
 
 # ########################################################################### #
 # ########### Define endedness and strandedness parameters ################## #
@@ -288,7 +319,7 @@ else:
 
 
 @follows(mkdir("hisat.dir/first.pass.dir"))
-@transform(glob.glob(os.path.join(PARAMS["fastq_dir"], fastq_pattern)),
+@transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
            regex(r".*/(.*).fastq.*.gz"),
            r"hisat.dir/first.pass.dir/\1.novel.splice.sites.txt.gz")
 def hisatFirstPass(infile, outfile):
@@ -348,7 +379,7 @@ def novelHisatSpliceSites(infiles, outfile):
 @transform(glob.glob("data.dir/" + fastq_pattern),
            regex(r".*/(.*).fastq.*.gz"),
            add_inputs(novelHisatSpliceSites),
-           r"hisat.dir/\1.hisat.bam")
+           r"hisat.dir/\1.bam")
 def hisatAlignments(infiles, outfile):
     '''Align reads using hisat with known and novel junctions'''
 
@@ -407,7 +438,7 @@ if PARAMS["input"] == "fastq":
     collectBAMs = hisatAlignments
 
 elif PARAMS["input"] == "bam":
-    collectBAMs = glob.glob(os.path.join(PARAMS["bam_dir"], "*.bam"))
+    collectBAMs = glob.glob(os.path.join(PARAMS["input_dir"], "*.bam"))
 
 else:
     raise ValueError('Input type must be either "fastq" or "bam"')
@@ -420,27 +451,42 @@ else:
 # ------------------------- Geneset Definition ------------------------------ #
 
 @follows(mkdir("annotations.dir"))
-@files((os.path.join(PARAMS["annotations_dir"],
-                     PARAMS["annotations_ensembl_geneset"]),
-        PARAMS["annotations_ercc92_geneset"]),
-       "annotations.dir/ens_ercc_geneset.gtf.gz")
-def prepareEnsemblERCC92GTF(infiles, outfile):
-        '''Preparation of geneset for quantitation.
-           ERCC92 GTF entries are appended to
-           the protein coding entries from Ensembl geneset_all'''
+@files(os.path.join(PARAMS["annotations_dir"],
+                    PARAMS["annotations_geneset"]),
+       "annotations.dir/geneset.gtf.gz")
+def prepareGeneset(infiles, outfile):
+    '''Preparation of geneset for quantitation.
+       As parameterised, (1) the geneset can be filtered
+       for e.g. protein coding genes (default) and (2) ERCC92
+       ERCC92 GTF entries are appended'''
 
-        ensembl, ercc = infiles
+    geneset = infiles
+    geneset_filter = PARAMS["annotations_geneset_filter"]
 
-        outname = outfile[:-len(".gz")]
+    outname = outfile[:-len(".gz")]
 
-        statement = ''' zgrep 'gene_biotype "protein_coding"' %(ensembl)s
-                        > %(outname)s;
-                        checkpoint;
-                        zcat %(ercc)s >> %(outname)s;
-                        checkpoint;
-                        gzip %(outname)s;
-                    '''
-        P.run()
+    if geneset_filter:
+        geneset_stat = '''zgrep '%(geneset_filter)s' %(geneset)s
+                         > %(outname)s;
+                         checkpoint;
+                      '''
+    else:
+        geneset_stat = '''zcat %(geneset)s
+                         > %(outname)s;
+                         checkpoint;
+                      '''
+
+    if PARAMS["ercc"]:
+        ercc_geneset = PARAMS["annotations_ercc92_geneset"]
+        ercc_stat = '''zcat %(ercc_geneset)s >> %(outname)s;
+                      checkpoint;
+                   '''
+    else:
+        ercc_stat = ''
+
+    statement = geneset_stat + ercc_stat + 'gzip %(outname)s'
+
+    P.run()
 
 
 # ----------------------------- Read Counting ------------------------------- #
@@ -448,7 +494,7 @@ def prepareEnsemblERCC92GTF(infiles, outfile):
 @follows(mkdir("htseq.dir"))
 @transform(collectBAMs,
            regex(r".*/(.*).bam"),
-           add_inputs(prepareEnsemblERCC92GTF),
+           add_inputs(prepareGeneset),
            r"htseq.dir/\1.counts")
 def runHTSeq(infiles, outfile):
     '''Run htseq-count'''
@@ -484,7 +530,7 @@ def loadHTSeqCounts(infiles, outfile):
 @follows(mkdir("cuffquant.dir"))
 @transform(collectBAMs,
            regex(r".*/(.*).bam"),
-           add_inputs(prepareEnsemblERCC92GTF),
+           add_inputs(prepareGeneset),
            r"cuffquant.dir/\1.log")
 def cuffQuant(infiles, outfile):
     '''Per sample quantification using cuffquant'''
@@ -526,7 +572,7 @@ def cuffQuant(infiles, outfile):
 
 
 @follows(mkdir("cuffnorm.dir"), cuffQuant)
-@merge([prepareEnsemblERCC92GTF, cuffQuant],
+@merge([prepareGeneset, cuffQuant],
        "cuffnorm.dir/cuffnorm.log")
 def cuffNorm(infiles, outfile):
     '''Calculate FPKMs using cuffNorm'''
@@ -606,6 +652,7 @@ def estimateCopyNumber(infiles, outfile):
              params=[code_dir])
 
 
+@active_if(PARAMS["ercc"])
 @merge(estimateCopyNumber, "copy.number.dir/copynumber.load")
 def loadCopyNumber(infiles, outfile):
     '''load the copy number estimations to the database'''
@@ -959,35 +1006,34 @@ def loadSpikeVsGenome(infiles, outfile):
 # ------------------------- No. genes detected ------------------------------ #
 
 @follows(mkdir("qc.dir/"))
-@files(loadCopyNumber,
+@files(loadCuffNorm,
        "qc.dir/number.genes.detected")
-def numberGenesDetected(infile, outfile):
+def numberGenesDetectedCufflinks(infile, outfile):
     '''Count no genes detected at copynumer > 0 in each sample'''
 
     table = P.toTable(infile)
 
     sqlstat = '''select *
                  from %(table)s
-                 where gene_id like "ENS%%"
+                 where tracking_id like "ENS%%"
               ''' % locals()
 
     df = DB.fetch_DataFrame(sqlstat, PARAMS["database_name"])
-    df2 = df.pivot(index="gene_id", columns="track", values="copy_number")
-    n_expressed = df2.apply(lambda x: np.sum([1 for y in x if y > 0]))
+    df.index = df["tracking_id"]
+    del df["tracking_id"]
+    df.columns = [x[:-len("_0")] for x in df.columns]
+    n_expressed = df.apply(lambda x: np.sum([1 for y in x if y > 0]))
 
     n_expressed.to_csv(outfile, sep="\t")
 
 
-@files(numberGenesDetected,
+@files(numberGenesDetectedCufflinks,
        "qc.dir/qc_no_genes_cufflinks.load")
-def loadNumberGenesDetected(infile, outfile):
+def loadNumberGenesDetectedCufflinks(infile, outfile):
     '''load the numbers of genes expressed to the db'''
 
     P.load(infile, outfile,
            options='-i "sample_id" -H "sample_id,no_genes_cufflinks"')
-
-
-# ------------------ No. genes detected htseq-count ---------------------- #
 
 
 @files(loadHTSeqCounts,
@@ -1064,27 +1110,19 @@ def sampleInformation(infiles, outfile):
 
     name_field_list = PARAMS["name_field_titles"]
     name_fields = name_field_list.strip().split(",")
-    if "sample_id" in name_fields or "sample" in name_fields:
-        raise ValueError('"sample_name" and "sample" are reserved and cannot'
-                         'be used as name field titles')
+    if "sample_id" in name_fields:
+        raise ValueError('"sample_id" is reserved and cannot'
+                         'be used as a name field title')
 
-    header = ["\t".join(["sample_id", "sample"] + name_fields + ["mapper"])]
-
-    sep = PARAMS["name_field_separator"]
+    header = ["\t".join(["sample_id"] + name_fields)]
 
     contents = []
     for infile in infiles:
 
-        sample_id = os.path.basename(infile)[:-len(".bam")]
+        sample_id = os.path.basename(infile).split(".")[0]
 
-        if "." in sample_id:
-            sample, mapper = sample_id.split(".", 1)
-        else:
-            sample, mapper = sample_id, "unknown"
-
-        contents.append("\t".join([sample_id, sample] +
-                                  sample.split(sep) +
-                                  [mapper]))
+        contents.append("\t".join([sample_id] +
+                                  sample_id.split("_")))
 
     with open(outfile, "w") as of:
         of.write("\n".join(header + contents))
@@ -1105,7 +1143,7 @@ def loadSampleInformation(infile, outfile):
         loadEstimateLibraryComplexity,
         loadSpikeVsGenome,
         loadFractionReadsSpliced,
-        loadNumberGenesDetected,
+        loadNumberGenesDetectedCufflinks,
         loadNumberGenesDetectedHTSeq,
         loadAlignmentSummaryMetrics,
         loadInsertSizeMetrics],
@@ -1139,8 +1177,7 @@ def qcSummary(infiles, outfile):
     name_fields = PARAMS["name_field_titles"].strip()
 
     stat_start = '''select distinct %(name_fields)s,
-                                    sample_information.sample, mapper,
-                                    %(t1)s.sample_id,
+                                    sample_information.sample_id,
                                     fraction_spliced,
                                     fraction_spike,
                                     no_genes_cufflinks,
