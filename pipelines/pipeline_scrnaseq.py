@@ -260,7 +260,7 @@ for sample_filename in input_files:
 
 
 # ########################################################################### #
-# ########### Define endedness and strandedness parameters ################## #
+# ######## Define endedness, strandedness and spike-in parameters ########### #
 # ########################################################################### #
 
 # determine endedness
@@ -299,6 +299,7 @@ elif STRAND == "reverse":
     HTSEQ_STRAND = "reverse"
     PICARD_STRAND = "SECOND_READ_TRANSCRIPTION_STRAND"
 
+ERCC = PARAMS["ercc"]
 
 # ---------------------- < specific pipeline tasks > ------------------------ #
 
@@ -476,7 +477,7 @@ def prepareGeneset(infiles, outfile):
                          checkpoint;
                       '''
 
-    if PARAMS["ercc"]:
+    if ERCC:
         ercc_geneset = PARAMS["annotations_ercc92_geneset"]
         ercc_stat = '''zcat %(ercc_geneset)s >> %(outname)s;
                       checkpoint;
@@ -626,6 +627,7 @@ def loadCuffNorm(infile, outfile):
 
 # ---------------------- Copynumber estimation ------------------------------ #
 
+@active_if(ERCC)
 @follows(mkdir("annotations.dir"))
 @files(PARAMS["annotations_ercc92_info"],
        "annotations.dir/ercc.load")
@@ -634,7 +636,7 @@ def loadERCC92Info(infile, outfile):
 
     P.load(infile, outfile, options='-i "gene_id"')
 
-
+@active_if(ERCC)
 @follows(mkdir("copy.number.dir"))
 @transform(cuffQuant,
            regex(r".*/(.*).log"),
@@ -651,8 +653,7 @@ def estimateCopyNumber(infiles, outfile):
              outfiles=outfile,
              params=[code_dir])
 
-
-@active_if(PARAMS["ercc"])
+@active_if(ERCC)
 @merge(estimateCopyNumber, "copy.number.dir/copynumber.load")
 def loadCopyNumber(infiles, outfile):
     '''load the copy number estimations to the database'''
