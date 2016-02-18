@@ -462,20 +462,12 @@ def prepareGeneset(infiles, outfile):
        ERCC92 GTF entries are appended'''
 
     geneset = infiles
-    geneset_filter = PARAMS["annotations_geneset_filter"]
-
     outname = outfile[:-len(".gz")]
 
-    if geneset_filter:
-        geneset_stat = '''zgrep '%(geneset_filter)s' %(geneset)s
-                         > %(outname)s;
-                         checkpoint;
-                      '''
-    else:
-        geneset_stat = '''zcat %(geneset)s
-                         > %(outname)s;
-                         checkpoint;
-                      '''
+    geneset_stat = '''zcat %(geneset)s
+                     > %(outname)s;
+                     checkpoint;
+                  '''
 
     if ERCC:
         ercc_geneset = PARAMS["annotations_ercc92_geneset"]
@@ -636,6 +628,7 @@ def loadERCC92Info(infile, outfile):
 
     P.load(infile, outfile, options='-i "gene_id"')
 
+
 @active_if(ERCC)
 @follows(mkdir("copy.number.dir"))
 @transform(cuffQuant,
@@ -652,6 +645,7 @@ def estimateCopyNumber(infiles, outfile):
              infiles=infiles,
              outfiles=outfile,
              params=[code_dir])
+
 
 @active_if(ERCC)
 @merge(estimateCopyNumber, "copy.number.dir/copynumber.load")
@@ -1014,18 +1008,31 @@ def numberGenesDetectedCufflinks(infile, outfile):
 
     table = P.toTable(infile)
 
-    sqlstat = '''select *
-                 from %(table)s
-                 where tracking_id like "ENS%%"
-              ''' % locals()
+    anndb = os.path.join(PARAMS["annotations_dir"],
+                         PARAMS["annotations_database"])
 
-    df = DB.fetch_DataFrame(sqlstat, PARAMS["database_name"])
-    df.index = df["tracking_id"]
-    del df["tracking_id"]
-    df.columns = [x[:-len("_0")] for x in df.columns]
-    n_expressed = df.apply(lambda x: np.sum([1 for y in x if y > 0]))
+    attach = '''attach "%(anndb)s" as anndb''' % locals()
 
-    n_expressed.to_csv(outfile, sep="\t")
+    statement = '''select distinct c.*, gene_biotype from %(table)s c
+                   inner join anndb.gene_info i
+                   on c.tracking_id=i.gene_id
+                ''' % locals()
+
+    df = DB.fetch_DataFrame(statement, db, attach)
+
+    melted_df = pd.melt(df, id_vars=["tracking_id", "gene_biotype"])
+
+    grouped_df = melted_df.groupby(["gene_biotype", "variable"])
+
+    agg_df = grouped.agg({"value": lambda x: np.sum([1 for y in x if y > 0])})
+    agg_df.reset_index(inplace=True)
+
+    count_df = pd.pivot_table(agg_df, index="variable",
+                              values="value", columns="gene_biotype")
+    count_df["total"] = count_df.apply(np.sum, 1)
+    count_df["sample_id"] = count_df.index
+
+    count_df.to_csv(outfile, index=False, sep="\t")
 
 
 @files(numberGenesDetectedCufflinks,
@@ -1034,7 +1041,7 @@ def loadNumberGenesDetectedCufflinks(infile, outfile):
     '''load the numbers of genes expressed to the db'''
 
     P.load(infile, outfile,
-           options='-i "sample_id" -H "sample_id,no_genes_cufflinks"')
+           options='-i "sample_id"')
 
 
 @files(loadHTSeqCounts,
@@ -1044,16 +1051,29 @@ def numberGenesDetectedHTSeq(infile, outfile):
 
     table = P.toTable(infile)
 
-    sqlstat = '''select *
-                 from %(table)s
-                 where gene_id like "ENS%%"
-              ''' % locals()
+    anndb = os.path.join(PARAMS["annotations_dir"],
+                         PARAMS["annotations_database"])
 
-    df = DB.fetch_DataFrame(sqlstat, PARAMS["database_name"])
-    df2 = df.pivot(index="gene_id", columns="track", values="counts")
-    n_expressed = df2.apply(lambda x: np.sum([1 for y in x if y > 0]))
+    attach = '''attach "%(anndb)s" as anndb''' % locals()
+    statement = '''select distinct h.*, gene_biotype from %(table)s h
+                   inner join anndb.gene_info i
+                   on h.gene_id=i.gene_id
+               ''' % locals()
 
-    n_expressed.to_csv(outfile, sep="\t")
+    melted_df = DB.fetch_DataFrame(statement, db, attach)
+
+    grouped_df = melted_df.groupby(["gene_biotype", "track"])
+
+    agg_df = grouped_df.agg({"counts": lambda x:
+                             np.sum([1 for y in x if y > 0])})
+    agg_df.reset_index(inplace=True)
+
+    count_df = pd.pivot_table(agg_df, index="track",
+                              values="counts", columns="gene_biotype")
+    count_df["total"] = count_df.apply(np.sum, 1)
+    count_df["sample_id"] = count_df.index
+
+    count_df.to_csv(outfile, index=False, sep="\t")
 
 
 @files(numberGenesDetectedHTSeq,
@@ -1062,7 +1082,7 @@ def loadNumberGenesDetectedHTSeq(infile, outfile):
     '''load the numbers of genes expressed to the db'''
 
     P.load(infile, outfile,
-           options='-i "sample_id" -H "sample_id,no_genes_htseq"')
+           options='-i "sample_id"')
 
 
 # --------------------- Fraction of spliced reads --------------------------- #
@@ -1181,8 +1201,14 @@ def qcSummary(infiles, outfile):
                                     sample_information.sample_id,
                                     fraction_spliced,
                                     fraction_spike,
-                                    no_genes_cufflinks,
-                                    no_genes_htseq,
+                                    qc_no_genes_cufflinks.protein_coding
+                                       as cufflinks_no_genes_pc,
+                                    qc_no_genes_cufflinks.total
+                                       as cufflinks_no_genes,
+                                    qc_no_genes_htseq.protein_coding
+                                       as htseq_no_genes_pc,
+                                    qc_no_genes_htseq.total
+                                       as htseq_no_genes,
                                     three_prime_bias
                                        as three_prime_bias,
                                     nreads_uniq_map_genome,
