@@ -184,33 +184,15 @@ PARAMS = P.getParameters(
      "../pipeline.ini",
      "pipeline.ini"])
 
-# add configuration values from associated pipelines
-#
-# 1. pipeline_annotations: any parameters will be added with the
-#    prefix "annotations_". The interface will be updated with
-#    "annotations_dir" to point to the absolute path names.
-PARAMS.update(P.peekParameters(
-    PARAMS["annotations_dir"],
-    "pipeline_annotations.py",
-    on_error_raise=__name__ == "__main__",
-    prefix="annotations_",
-    update_interface=True))
-
-
-# if necessary, update the PARAMS dictionary in any modules file.
-# e.g.:
-#
-# import CGATPipelines.PipelineGeneset as PipelineGeneset
-# PipelineGeneset.PARAMS = PARAMS
-#
-# Note that this is a hack and deprecated, better pass all
-# parameters that are needed by a function explicitely.
-
 # Establish the location of module scripts for P.submit() functions
 if PARAMS["code_dir"] == "":
     code_dir = os.path.dirname(os.path.realpath(__file__))
 else:
     code_dir = PARAMS["code_dir"]
+
+# Set the database locations
+DATABASE = PARAMS["database_name"]
+ANN_DATABASE = PARAMS["annotations_database"]
 
 
 # ------------------------- < utility functions > --------------------------- #
@@ -238,25 +220,27 @@ def connect():
 # ########################################################################### #
 
 if PARAMS["input"].lower() == "fastq":
-    SUFFIX_PATTERN = "*.fastq"
+    SUFFIX_PATTERN = "*.fastq.*gz"
 elif PARAMS["input"].lower() == "bam":
     SUFFIX_PATTERN = "*.bam"
 else:
     raise ValueError("this pipeline only supports fastq or bam files")
 
-input_files = glob.glob(os.path.join(PARAMS["input_dir"], SUFFIX_PATTERN))
+INPUT_FILES = glob.glob(os.path.join(PARAMS["input_dir"], SUFFIX_PATTERN))
+if len(INPUT_FILES) == 0:
+    raise ValueError("No input files detected")
 
 NAME_FIELD_TITLES = PARAMS["name_field_titles"]
-NAME_FIELD_COUNT = ",".split(NAME_FIELD_TITLES)
+NAME_FIELD_COUNT = len(",".split(NAME_FIELD_TITLES))
 
-for sample_filename in input_files:
+for sample_filename in INPUT_FILES:
     sample_name = sample_filename.split(".")[0]
-    n_name_fields = sample_name.split("_")
+    n_name_fields = len(sample_name.split("_"))
     if NAME_FIELD_COUNT != n_name_fields:
         raise ValueError("%(sample_filename)s does not have the expected"
                          " number of name fields (%(NAME_FIELD_TITLES)s)."
                          " Note that name fields must be separated with"
-                         " underscores" % locals)
+                         " underscores" % locals())
 
 
 # ########################################################################### #
@@ -1002,29 +986,31 @@ def loadSpikeVsGenome(infiles, outfile):
 
 @follows(mkdir("qc.dir/"))
 @files(loadCuffNorm,
-       "qc.dir/number.genes.detected")
+       "qc.dir/number.genes.detected.cufflinks")
 def numberGenesDetectedCufflinks(infile, outfile):
     '''Count no genes detected at copynumer > 0 in each sample'''
 
     table = P.toTable(infile)
 
-    anndb = os.path.join(PARAMS["annotations_dir"],
-                         PARAMS["annotations_database"])
-
-    attach = '''attach "%(anndb)s" as anndb''' % locals()
+    attach = '''attach "%(ANN_DATABASE)s" as anndb''' % globals()
 
     statement = '''select distinct c.*, gene_biotype from %(table)s c
                    inner join anndb.gene_info i
                    on c.tracking_id=i.gene_id
                 ''' % locals()
 
-    df = DB.fetch_DataFrame(statement, db, attach)
+    df = DB.fetch_DataFrame(statement, DATABASE, attach)
+
+    # snip off the cufflinks replicate field
+    df.columns = [x[:-len("_0")] if x.endswith("_0") else x
+                  for x in df.columns]
 
     melted_df = pd.melt(df, id_vars=["tracking_id", "gene_biotype"])
 
     grouped_df = melted_df.groupby(["gene_biotype", "variable"])
 
-    agg_df = grouped.agg({"value": lambda x: np.sum([1 for y in x if y > 0])})
+    agg_df = grouped_df.agg({"value": lambda x:
+                             np.sum([1 for y in x if y > 0])})
     agg_df.reset_index(inplace=True)
 
     count_df = pd.pivot_table(agg_df, index="variable",
@@ -1051,16 +1037,13 @@ def numberGenesDetectedHTSeq(infile, outfile):
 
     table = P.toTable(infile)
 
-    anndb = os.path.join(PARAMS["annotations_dir"],
-                         PARAMS["annotations_database"])
-
-    attach = '''attach "%(anndb)s" as anndb''' % locals()
+    attach = '''attach "%(ANN_DATABASE)s" as anndb''' % globals()
     statement = '''select distinct h.*, gene_biotype from %(table)s h
                    inner join anndb.gene_info i
                    on h.gene_id=i.gene_id
                ''' % locals()
 
-    melted_df = DB.fetch_DataFrame(statement, db, attach)
+    melted_df = DB.fetch_DataFrame(statement, DATABASE, attach)
 
     grouped_df = melted_df.groupby(["gene_biotype", "track"])
 
