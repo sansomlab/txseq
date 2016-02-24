@@ -387,6 +387,8 @@ def hisatAlignments(infiles, outfile):
 
     hisat_strand_param = HISAT_STRAND_PARAM
 
+    sort_sam = P.getTempFilename()
+
     statement = '''%(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
@@ -398,11 +400,11 @@ def hisatAlignments(infiles, outfile):
                    &> %(log)s;
                    checkpoint;
                    samtools view -bS %(out_sam)s
-                   | samtools sort - -o %(outfile)s >>%(log)s;
+                   | samtools sort - -T %(sort_sam)s -o %(outfile)s >>%(log)s;
                    checkpoint;
                    samtools index %(outfile)s;
                    checkpoint;
-                   rm %(out_sam)s;
+                   rm %(out_sam)s %(sort_sam)s;
                  '''
 
     P.run()
