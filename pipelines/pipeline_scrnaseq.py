@@ -374,7 +374,6 @@ def hisatAlignments(infiles, outfile):
     index = PARAMS["hisat_index"]
     threads = PARAMS["hisat_threads"]
     log = outfile + ".log"
-    outname = outfile[:-len(".bam")]
 
     to_cluster = True
     job_threads = threads
@@ -399,7 +398,7 @@ def hisatAlignments(infiles, outfile):
                    &> %(log)s;
                    checkpoint;
                    samtools view -bS %(out_sam)s
-                   | samtools sort - %(outname)s >>%(log)s;
+                   | samtools sort - -o %(outfile)s >>%(log)s;
                    checkpoint;
                    samtools index %(outfile)s;
                    checkpoint;
