@@ -404,7 +404,7 @@ def hisatAlignments(infiles, outfile):
                    checkpoint;
                    samtools index %(outfile)s;
                    checkpoint;
-                   rm %(out_sam)s;
+                   rm %(out_sam)s %(sort_sam)s;
                  '''
 
     P.run()
