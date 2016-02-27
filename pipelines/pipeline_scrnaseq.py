@@ -697,7 +697,7 @@ def collectRnaSeqMetrics(infile, outfile):
                    > %(coverage_out)s;
                    checkpoint;
                    rm $picard_out;
-                ''' % locals()
+                '''
 
     P.run()
 
@@ -778,7 +778,7 @@ def estimateLibraryComplexity(infile, outfile):
                        > %(outfile)s;
                        checkpoint;
                        rm $picard_out;
-                    ''' % locals()
+                    '''
 
     else:
         statement = '''echo "Not compatible with SE data"
@@ -835,7 +835,7 @@ def alignmentSummaryMetrics(infile, outfile):
                    > %(outfile)s;
                    checkpoint;
                    rm $picard_out;
-                ''' % locals()
+                '''
 
     P.run()
 
@@ -893,7 +893,7 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
                        > %(picard_histogram)s;
                        checkpoint;
                        rm $picard_out;
-                    ''' % locals()
+                    '''
 
     else:
         picard_summary, picard_histogram = outfiles
@@ -903,7 +903,7 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
                        checkpoint;
                        echo "Not compatible with SE data"
                        > %(picard_histogram)s
-                    ''' % locals()
+                    '''
     P.run()
 
 
@@ -924,7 +924,7 @@ def loadInsertSizeMetrics(infiles, outfile):
     else:
         statement = '''echo "Not compatible with SE data"
                        > %(outfile)s
-                    ''' % locals()
+                    '''
         P.run()
 
 
@@ -945,7 +945,7 @@ def loadInsertSizeHistograms(infiles, outfile):
     else:
         statement = '''echo "Not compatible with SE data"
                        > %(outfile)s
-                    ''' % locals()
+                    '''
         P.run()
 
 
@@ -973,7 +973,7 @@ def spikeVsGenome(infile, outfile):
                            END{frac=ercc/(ercc+genome);
                                print genome,ercc,frac};'
                     >> %(outfile)s
-                ''' % locals()
+                '''
     P.run()
 
 
@@ -1095,7 +1095,7 @@ def fractionReadsSpliced(infile, outfile):
                            else{s+=1}}
                           END{print s/(us+s)}'
                    >> %(outfile)s
-                 ''' % locals()
+                 '''
 
     P.run()
 
