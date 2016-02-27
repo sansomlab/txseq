@@ -370,7 +370,6 @@ def hisatAlignments(infiles, outfile):
 
     reads_one, novel_splice_sites = infiles
 
-    out_sam = P.getTempFilename()
     index = PARAMS["hisat_index"]
     threads = PARAMS["hisat_threads"]
     log = outfile + ".log"
@@ -387,24 +386,25 @@ def hisatAlignments(infiles, outfile):
 
     hisat_strand_param = HISAT_STRAND_PARAM
 
-    sort_sam = P.getTempFilename()
-
-    statement = '''%(hisat_executable)s
+    statement = '''out_sam=`mktemp -p %(local_tmpdir)s`;
+                   sort_sam=`mktemp -p %(local_tmpdir)s`;
+                   checkpoint;
+                   %(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
                       --threads %(threads)s
                       --novel-splicesite-infile %(novel_splice_sites)s
                       %(hisat_strand_param)s
                       %(hisat_options)s
-                      -S %(out_sam)s
+                      -S $out_sam
                    &> %(log)s;
                    checkpoint;
-                   samtools view -bS %(out_sam)s
-                   | samtools sort - -T %(sort_sam)s -o %(outfile)s >>%(log)s;
+                   samtools view -bS $out_sam
+                   | samtools sort - -T $sort_sam -o %(outfile)s >>%(log)s;
                    checkpoint;
                    samtools index %(outfile)s;
                    checkpoint;
-                   rm %(out_sam)s %(sort_sam)s;
+                   rm $out_sam $sort_sam;
                  '''
 
     P.run()
@@ -526,10 +526,11 @@ def cuffQuant(infiles, outfile):
     genome_multifasta = os.path.join(PARAMS["annotations_genome_dir"],
                                      PARAMS["genome"]+".fasta")
 
-    gtf = P.getTempFilename()
     cufflinks_strand = CUFFLINKS_STRAND
 
-    statement = '''zcat %(geneset)s > %(gtf)s;
+    statement = '''gtf=`mktemp -p %(local_tmpdir)s`;
+                   checkpoint;
+                   zcat %(geneset)s > $gtf;
                    checkpoint;
                    cuffquant
                            --output-dir %(output_dir)s
@@ -541,9 +542,9 @@ def cuffQuant(infiles, outfile):
                            --max-mle-iterations 10000
                            --verbose
                            --frag-bias-correct %(genome_multifasta)s
-                            %(gtf)s %(bam_file)s >& %(outfile)s;
+                            $gtf %(bam_file)s >& %(outfile)s;
                     checkpoint;
-                    rm %(gtf)s;
+                    rm $gtf;
                 '''
 
     P.run()
@@ -570,10 +571,11 @@ def cuffNorm(infiles, outfile):
     job_options = "-l mem_free=8G"
     job_threads = PARAMS["cufflinks_cuffnorm_threads"]
 
-    gtf = P.getTempFilename()
     cufflinks_strand = CUFFLINKS_STRAND
 
-    statement = ''' zcat %(geneset)s > %(gtf)s;
+    statement = ''' gtf=`mktemp -p %(local_tmpdir)s`;
+                    checkpoint;
+                    zcat %(geneset)s > $gtf;
                     checkpoint;
                     cuffnorm
                         --output-dir %(output_dir)s
@@ -582,9 +584,9 @@ def cuffNorm(infiles, outfile):
                         --total-hits-norm
                         --library-norm-method classic-fpkm
                         --labels %(labels)s
-                        %(gtf)s %(cxb_files)s > %(outfile)s;
+                        $gtf %(cxb_files)s > %(outfile)s;
                      checkpoint;
-                     rm %(gtf)s;
+                     rm $gtf;
                 '''
 
     P.run()
@@ -662,7 +664,6 @@ def quantitation():
 def collectRnaSeqMetrics(infile, outfile):
     '''Run Picard CollectRnaSeqMetrics on the bam files'''
 
-    picard_out = P.getTempFilename()
     picard_options = PARAMS["picard_collectrnaseqmetrics_options"]
 
     geneset_flat = PARAMS["picard_geneset_flat"]
@@ -676,25 +677,27 @@ def collectRnaSeqMetrics(infile, outfile):
 
     picard_strand = PICARD_STRAND
 
-    statement = '''CollectRnaSeqMetrics
+    statement = '''picard_out=`mktemp -p %(local_tmpdir)s`;
+                   checkpoint;
+                   CollectRnaSeqMetrics
                    I=%(infile)s
                    REF_FLAT=%(geneset_flat)s
-                   O=%(picard_out)s
+                   O=$picard_out
                    CHART=%(chart_out)s
                    STRAND_SPECIFICITY=%(picard_strand)s
                    VALIDATION_STRINGENCY=%(validation_stringency)s
                    %(picard_options)s;
                    checkpoint;
-                   grep . %(picard_out)s | grep -v "#" | head -n2
+                   grep . $picard_out | grep -v "#" | head -n2
                    > %(outfile)s;
                    checkpoint;
-                   grep . %(picard_out)s
+                   grep . $picard_out
                    | grep -A 102 "## HISTOGRAM"
                    | grep -v "##"
                    > %(coverage_out)s;
                    checkpoint;
-                   rm %(picard_out)s;
-                ''' % locals()
+                   rm $picard_out;
+                '''
 
     P.run()
 
@@ -756,7 +759,6 @@ def estimateLibraryComplexity(infile, outfile):
     '''Run Picard EstimateLibraryComplexity on the bam files'''
 
     if PAIRED:
-        picard_out = P.getTempFilename()
         picard_options = PARAMS["picard_estimatelibrarycomplexity_options"]
 
         validation_stringency = PARAMS["picard_validation_stringency"]
@@ -764,17 +766,19 @@ def estimateLibraryComplexity(infile, outfile):
         job_threads = PARAMS["picard_threads"]
         job_options = "-l mem_free=" + PARAMS["picard_memory"]
 
-        statement = '''EstimateLibraryComplexity
+        statement = '''picard_out=`mktemp -p %(local_tmpdir)s`;
+                       checkpoint;
+                       EstimateLibraryComplexity
                        I=%(infile)s
-                       O=%(picard_out)s
+                       O=$picard_out
                        VALIDATION_STRINGENCY=%(validation_stringency)s
                        %(picard_options)s;
                        checkpoint;
-                       grep . %(picard_out)s | grep -v "#" | head -n2
+                       grep . $picard_out | grep -v "#" | head -n2
                        > %(outfile)s;
                        checkpoint;
-                       rm %(picard_out)s;
-                    ''' % locals()
+                       rm $picard_out;
+                    '''
 
     else:
         statement = '''echo "Not compatible with SE data"
@@ -809,7 +813,6 @@ def loadEstimateLibraryComplexity(infiles, outfile):
 def alignmentSummaryMetrics(infile, outfile):
     '''Run Picard AlignmentSummaryMetrics on the bam files'''
 
-    picard_out = P.getTempFilename()
     picard_options = PARAMS["picard_alignmentsummarymetric_options"]
     validation_stringency = PARAMS["picard_validation_stringency"]
 
@@ -819,18 +822,20 @@ def alignmentSummaryMetrics(infile, outfile):
     reference_sequence = os.path.join(PARAMS["annotations_genome_dir"],
                                       PARAMS["genome"] + ".fasta")
 
-    statement = '''CollectAlignmentSummaryMetrics
+    statement = '''picard_out=`mktemp -p %(local_tmpdir)s`;
+                   checkpoint;
+                   CollectAlignmentSummaryMetrics
                    I=%(infile)s
-                   O=%(picard_out)s
+                   O=$picard_out
                    REFERENCE_SEQUENCE=%(reference_sequence)s
                    VALIDATION_STRINGENCY=%(validation_stringency)s
                    %(picard_options)s;
                    checkpoint;
-                   grep . %(picard_out)s | grep -v "#"
+                   grep . $picard_out | grep -v "#"
                    > %(outfile)s;
                    checkpoint;
-                   rm %(picard_out)s;
-                ''' % locals()
+                   rm $picard_out;
+                '''
 
     P.run()
 
@@ -861,7 +866,6 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
 
     if PAIRED:
         picard_summary, picard_histogram = outfiles
-        picard_out = P.getTempFilename()
         picard_histogram_pdf = picard_histogram + ".pdf"
         picard_options = PARAMS["picard_insertsizemetric_options"]
 
@@ -872,22 +876,24 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
         reference_sequence = os.path.join(PARAMS["annotations_genome_dir"],
                                           PARAMS["genome"] + ".fasta")
 
-        statement = '''CollectInsertSizeMetrics
+        statement = '''picard_out=`mktemp -p %(local_tmpdir)s`;
+                       checkpoint;
+                       CollectInsertSizeMetrics
                        I=%(infile)s
-                       O=%(picard_out)s
+                       O=$picard_out
                        HISTOGRAM_FILE=%(picard_histogram_pdf)s
                        VALIDATION_STRINGENCY=%(validation_stringency)s
                        REFERENCE_SEQUENCE=%(reference_sequence)s
                        %(picard_options)s;
                        checkpoint;
-                       grep "MEDIAN_INSERT_SIZE" -A 1 %(picard_out)s
+                       grep "MEDIAN_INSERT_SIZE" -A 1 $picard_out
                        > %(picard_summary)s;
                        checkpoint;
-                       sed -e '1,/## HISTOGRAM/d' %(picard_out)s
+                       sed -e '1,/## HISTOGRAM/d' $picard_out
                        > %(picard_histogram)s;
                        checkpoint;
-                       rm %(picard_out)s;
-                    ''' % locals()
+                       rm $picard_out;
+                    '''
 
     else:
         picard_summary, picard_histogram = outfiles
@@ -897,7 +903,7 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
                        checkpoint;
                        echo "Not compatible with SE data"
                        > %(picard_histogram)s
-                    ''' % locals()
+                    '''
     P.run()
 
 
@@ -918,7 +924,7 @@ def loadInsertSizeMetrics(infiles, outfile):
     else:
         statement = '''echo "Not compatible with SE data"
                        > %(outfile)s
-                    ''' % locals()
+                    '''
         P.run()
 
 
@@ -939,7 +945,7 @@ def loadInsertSizeHistograms(infiles, outfile):
     else:
         statement = '''echo "Not compatible with SE data"
                        > %(outfile)s
-                    ''' % locals()
+                    '''
         P.run()
 
 
@@ -967,7 +973,7 @@ def spikeVsGenome(infile, outfile):
                            END{frac=ercc/(ercc+genome);
                                print genome,ercc,frac};'
                     >> %(outfile)s
-                ''' % locals()
+                '''
     P.run()
 
 
@@ -1089,7 +1095,7 @@ def fractionReadsSpliced(infile, outfile):
                            else{s+=1}}
                           END{print s/(us+s)}'
                    >> %(outfile)s
-                 ''' % locals()
+                 '''
 
     P.run()
 
