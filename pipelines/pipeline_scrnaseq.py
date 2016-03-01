@@ -386,8 +386,7 @@ def hisatAlignments(infiles, outfile):
 
     hisat_strand_param = HISAT_STRAND_PARAM
 
-    statement = '''out_sam=`mktemp -p %(local_tmpdir)s`;
-                   sort_sam=`mktemp -p %(local_tmpdir)s`;
+    statement = '''sort_sam=`mktemp -p %(local_tmpdir)s`;
                    checkpoint;
                    %(hisat_executable)s
                       -x %(index)s
@@ -396,15 +395,13 @@ def hisatAlignments(infiles, outfile):
                       --novel-splicesite-infile %(novel_splice_sites)s
                       %(hisat_strand_param)s
                       %(hisat_options)s
-                      -S $out_sam
-                   &> %(log)s;
-                   checkpoint;
-                   samtools view -bS $out_sam
+                   2> %(log)s
+                   | samtools view - -bS
                    | samtools sort - -T $sort_sam -o %(outfile)s >>%(log)s;
                    checkpoint;
                    samtools index %(outfile)s;
                    checkpoint;
-                   rm $out_sam $sort_sam;
+                   rm $sort_sam;
                  '''
 
     P.run()
