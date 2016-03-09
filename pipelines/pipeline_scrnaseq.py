@@ -479,14 +479,14 @@ def featureCounts(infiles, outfile):
 
     bamfile, geneset = [os.path.abspath(x) for x in infiles]
     outfile_name = os.path.abspath(outfile)
-    
+
     # set featureCounts options
     featurecounts_strand = FEATURECOUNTS_STRAND
 
     if PAIRED:
-        paired_options="-p"
+        paired_options = "-p"
     else:
-        paired_options=""
+        paired_options = ""
 
     job_threads = PARAMS["featurecounts_threads"]
 
@@ -496,7 +496,7 @@ def featureCounts(infiles, outfile):
                    counts=`mktemp -p %(local_tmpdir)s`;
                    checkpoint;
                    zcat %(geneset)s > $gtf;
-                   checkpoint;                
+                   checkpoint;
                    featureCounts
                         -a $gtf
                         -o $counts
