@@ -46,7 +46,7 @@ This pipeline performs the follow tasks:
 (2) Quantitation of gene expression
       - Ensembl protein coding + ERCC spikes
       - Cufflinks (cuffquant + cuffnorm) is run for copy number estimation
-      - HTseq is run for counts
+      - featureCounts (from the subread package) is run for counting reads
 
 (3) Calculation of post-mapping QC statistics
 
@@ -140,7 +140,7 @@ Requirements (TBC):
 * cufflinks
 * picard
 * hisat
-* htseq
+* subread
 * R
 * etc!
 
@@ -262,7 +262,7 @@ if STRAND not in ("none", "forward", "reverse"):
 
 if STRAND == "none":
     CUFFLINKS_STRAND = "fr-unstranded"
-    HTSEQ_STRAND = "no"
+    FEATURECOUNTS_STRAND = "0"
     PICARD_STRAND = "NONE"
 
 elif STRAND == "forward":
@@ -271,7 +271,7 @@ elif STRAND == "forward":
     else:
         HISAT_STRAND = "F"
     CUFFLINKS_STRAND = "fr-secondstrand"
-    HTSEQ_STRAND = "yes"
+    FEATURECOUNTS_STRAND = "1"
     PICARD_STRAND = "FIRST_READ_TRANSCRIPTION_STRAND"
 
 elif STRAND == "reverse":
@@ -280,7 +280,7 @@ elif STRAND == "reverse":
     else:
         HISAT_STRAND = "R"
     CUFFLINKS_STRAND = "fr-firststrand"
-    HTSEQ_STRAND = "reverse"
+    FEATURECOUNTS_STRAND = "2"
     PICARD_STRAND = "SECOND_READ_TRANSCRIPTION_STRAND"
 
 ERCC = PARAMS["ercc"]
@@ -466,34 +466,64 @@ def prepareGeneset(infiles, outfile):
 
 # ----------------------------- Read Counting ------------------------------- #
 
-@follows(mkdir("htseq.dir"))
+@follows(mkdir("featureCounts.dir"))
 @transform(collectBAMs,
            regex(r".*/(.*).bam"),
            add_inputs(prepareGeneset),
-           r"htseq.dir/\1.counts")
-def runHTSeq(infiles, outfile):
-    '''Run htseq-count'''
+           r"featureCounts.dir/\1.counts.gz")
+def featureCounts(infiles, outfile):
+    '''Run featureCounts. Note that we first need
+       to change directory to a scratch location because
+       the current dir is hard coded as the temp dir!!
+    '''
 
-    bamfile, gtf = infiles
-    htseq_strand = HTSEQ_STRAND
+    bamfile, geneset = [os.path.abspath(x) for x in infiles]
+    outfile_name = os.path.abspath(outfile)
 
-    statement = ''' htseq-count
-                        -f bam
-                        -r pos
-                        -s %(htseq_strand)s
-                        -t exon
-                        --quiet
-                        %(bamfile)s %(gtf)s >
-                        %(outfile)s; '''
+    # set featureCounts options
+    featurecounts_strand = FEATURECOUNTS_STRAND
+
+    if PAIRED:
+        paired_options = "-p"
+    else:
+        paired_options = ""
+
+    job_threads = PARAMS["featurecounts_threads"]
+
+    statement = '''cd %(local_tmpdir)s;
+                   gtf=`mktemp -p %(local_tmpdir)s`;
+                   checkpoint;
+                   counts=`mktemp -p %(local_tmpdir)s`;
+                   checkpoint;
+                   zcat %(geneset)s > $gtf;
+                   checkpoint;
+                   featureCounts
+                        -a $gtf
+                        -o $counts
+                        -s %(featurecounts_strand)s
+                        -T %(featurecounts_threads)s
+                        %(featurecounts_options)s
+                        %(paired_options)s
+                        %(bamfile)s;
+                        checkpoint;
+                        cut -f1,7 $counts
+                        | grep -v "#" | grep -v "Geneid"
+                        | gzip -c > %(outfile_name)s;
+                        checkpoint;
+                        rm $gtf;
+                        checkpoint;
+                        rm $counts;
+                 '''
+
     P.run()
 
 
-@merge(runHTSeq,
-       "htseq.dir/htseq_counts.load")
-def loadHTSeqCounts(infiles, outfile):
+@merge(featureCounts,
+       "featureCounts.dir/featurecounts.load")
+def loadFeatureCounts(infiles, outfile):
 
         P.concatenateAndLoad(infiles, outfile,
-                             regex_filename=".*/(.*).counts",
+                             regex_filename=".*/(.*).counts.gz",
                              has_titles=False,
                              cat="track",
                              header="track,gene_id,counts",
@@ -641,7 +671,7 @@ def loadCopyNumber(infiles, outfile):
                          options='-i "gene_id"')
 
 
-@follows(loadCopyNumber, loadHTSeqCounts)
+@follows(loadCopyNumber, loadFeatureCounts)
 def quantitation():
     '''quantitation target'''
     pass
@@ -1034,10 +1064,10 @@ def loadNumberGenesDetectedCufflinks(infile, outfile):
            options='-i "sample_id"')
 
 
-@files(loadHTSeqCounts,
-       "qc.dir/number.genes.detected.htseq")
-def numberGenesDetectedHTSeq(infile, outfile):
-    '''Count no genes detected by htseq-count at counts > 0 in each sample'''
+@files(loadFeatureCounts,
+       "qc.dir/number.genes.detected.featurecounts")
+def numberGenesDetectedFeatureCounts(infile, outfile):
+    '''Count no genes detected by featureCount at counts > 0 in each sample'''
 
     table = P.toTable(infile)
 
@@ -1063,9 +1093,9 @@ def numberGenesDetectedHTSeq(infile, outfile):
     count_df.to_csv(outfile, index=False, sep="\t")
 
 
-@files(numberGenesDetectedHTSeq,
-       "qc.dir/qc_no_genes_htseq.load")
-def loadNumberGenesDetectedHTSeq(infile, outfile):
+@files(numberGenesDetectedFeatureCounts,
+       "qc.dir/qc_no_genes_featurecounts.load")
+def loadNumberGenesDetectedFeatureCounts(infile, outfile):
     '''load the numbers of genes expressed to the db'''
 
     P.load(infile, outfile,
@@ -1152,7 +1182,7 @@ def loadSampleInformation(infile, outfile):
         loadSpikeVsGenome,
         loadFractionReadsSpliced,
         loadNumberGenesDetectedCufflinks,
-        loadNumberGenesDetectedHTSeq,
+        loadNumberGenesDetectedFeatureCounts,
         loadAlignmentSummaryMetrics,
         loadInsertSizeMetrics],
        "qc.dir/qc_summary.txt")
@@ -1192,10 +1222,10 @@ def qcSummary(infiles, outfile):
                                        as cufflinks_no_genes_pc,
                                     qc_no_genes_cufflinks.total
                                        as cufflinks_no_genes,
-                                    qc_no_genes_htseq.protein_coding
-                                       as htseq_no_genes_pc,
-                                    qc_no_genes_htseq.total
-                                       as htseq_no_genes,
+                                    qc_no_genes_featurecounts.protein_coding
+                                       as featurecounts_no_genes_pc,
+                                    qc_no_genes_featurecounts.total
+                                       as featurecounts_no_genes,
                                     three_prime_bias
                                        as three_prime_bias,
                                     nreads_uniq_map_genome,
