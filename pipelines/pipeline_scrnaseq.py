@@ -302,6 +302,10 @@ if STRAND != "none":
 else:
     HISAT_STRAND_PARAM = ""
 
+HISAT_THREADS = PARAMS["hisat_threads"]
+HISAT_MEMORY = str(int(PARAMS["hisat_total_mb_memory"]) /
+                   int(HISAT_THREADS)) + "M"
+
 
 @follows(mkdir("hisat.dir/first.pass.dir"))
 @transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
@@ -313,14 +317,13 @@ def hisatFirstPass(infile, outfile):
     reads_one = infile
 
     index = PARAMS["hisat_index"]
-    threads = PARAMS["hisat_threads"]
     log = outfile + ".log"
     out_name = outfile[:-len(".gz")]
 
     # queue options
     to_cluster = True  # this is the default
-    job_threads = threads
-    job_options = "-l mem_free=4G"
+    job_threads = HISAT_THREADS
+    job_memory = HISAT_MEMORY
 
     if PAIRED:
         reads_two = reads_one.replace(".1.", ".2.")
@@ -333,7 +336,7 @@ def hisatFirstPass(infile, outfile):
     statement = '''%(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
-                      --threads %(threads)s
+                      --threads %(job_threads)s
                       --novel-splicesite-outfile %(out_name)s
                       %(hisat_strand_param)s
                       %(hisat_options)s
@@ -371,12 +374,11 @@ def hisatAlignments(infiles, outfile):
     reads_one, novel_splice_sites = infiles
 
     index = PARAMS["hisat_index"]
-    threads = PARAMS["hisat_threads"]
     log = outfile + ".log"
 
     to_cluster = True
-    job_threads = threads
-    job_options = "-l mem_free=4G"
+    job_threads = HISAT_THREADS
+    job_memory = HISAT_MEMORY
 
     if PAIRED:
         reads_two = reads_one.replace(".1.", ".2.")
@@ -391,7 +393,7 @@ def hisatAlignments(infiles, outfile):
                    %(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
-                      --threads %(threads)s
+                      --threads %(job_threads)s
                       --novel-splicesite-infile %(novel_splice_sites)s
                       %(hisat_strand_param)s
                       %(hisat_options)s
@@ -595,8 +597,10 @@ def cuffNorm(infiles, outfile):
     labels = ",".join([f.split("/")[1]
                        for f in cxb_files.split(" ")])
 
-    job_options = "-l mem_free=8G"
+    total_mem = PARAMS["cufflinks_cuffnorm_total_mb_memory"]
+
     job_threads = PARAMS["cufflinks_cuffnorm_threads"]
+    job_memory = str(int(total_mem) / int(job_threads)) + "M"
 
     cufflinks_strand = CUFFLINKS_STRAND
 
@@ -681,6 +685,12 @@ def quantitation():
 # ################ (3) Post-mapping Quality Control ######################### #
 # ########################################################################### #
 
+# -------------------- Set generic Picard options --------------------------- #
+
+PICARD_THREADS = PARAMS["picard_threads"]
+PICARD_MEMORY = str(int(PARAMS["picard_total_mb_memory"]) /
+                    int(PICARD_THREADS)) + "M"
+
 
 # ------------------- Picard: CollectRnaSeqMetrics -------------------------- #
 
@@ -696,8 +706,8 @@ def collectRnaSeqMetrics(infile, outfile):
     geneset_flat = PARAMS["picard_geneset_flat"]
     validation_stringency = PARAMS["picard_validation_stringency"]
 
-    job_threads = PARAMS["picard_threads"]
-    job_options = "-l mem_free=" + PARAMS["picard_memory"]
+    job_threads = PICARD_THREADS
+    job_memory = PICARD_MEMORY
 
     coverage_out = outfile[:-len(".metrics")] + ".cov.hist"
     chart_out = outfile[:-len(".metrics")] + ".cov.pdf"
@@ -790,8 +800,8 @@ def estimateLibraryComplexity(infile, outfile):
 
         validation_stringency = PARAMS["picard_validation_stringency"]
 
-        job_threads = PARAMS["picard_threads"]
-        job_options = "-l mem_free=" + PARAMS["picard_memory"]
+        job_threads = PICARD_THREADS
+        job_memory = PICARD_MEMORY
 
         statement = '''picard_out=`mktemp -p %(local_tmpdir)s`;
                        checkpoint;
@@ -843,8 +853,8 @@ def alignmentSummaryMetrics(infile, outfile):
     picard_options = PARAMS["picard_alignmentsummarymetric_options"]
     validation_stringency = PARAMS["picard_validation_stringency"]
 
-    job_threads = PARAMS["picard_threads"]
-    job_options = "-l mem_free=" + PARAMS["picard_memory"]
+    job_threads = PICARD_THREADS
+    job_memory = PICARD_MEMORY
 
     reference_sequence = os.path.join(PARAMS["annotations_genome_dir"],
                                       PARAMS["genome"] + ".fasta")
@@ -896,8 +906,8 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
         picard_histogram_pdf = picard_histogram + ".pdf"
         picard_options = PARAMS["picard_insertsizemetric_options"]
 
-        job_threads = PARAMS["picard_threads"]
-        job_options = "-l mem_free=" + PARAMS["picard_memory"]
+        job_threads = PICARD_THREADS
+        job_memory = PICARD_MEMORY
 
         validation_stringency = PARAMS["picard_validation_stringency"]
         reference_sequence = os.path.join(PARAMS["annotations_genome_dir"],
