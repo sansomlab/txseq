@@ -632,7 +632,7 @@ def loadCuffNorm(infile, outfile):
     fpkm_table = os.path.dirname(infile) + "/genes.fpkm_table"
 
     P.load(fpkm_table, outfile,
-           options='-i "gene_id"')
+           options='-i "tracking_id"')
 
 
 # ---------------------- Copynumber estimation ------------------------------ #
