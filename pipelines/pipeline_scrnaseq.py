@@ -215,32 +215,39 @@ def connect():
 
     return dbh
 
+
 # ########################################################################### #
 # ###################### Sanity check filenames ############################# #
 # ########################################################################### #
 
-if PARAMS["input"].lower() == "fastq":
-    SUFFIX_PATTERN = "*.fastq.*gz"
-elif PARAMS["input"].lower() == "bam":
-    SUFFIX_PATTERN = "*.bam"
-else:
-    raise ValueError("this pipeline only supports fastq or bam files")
+@files(None, "checkInputs.sentinel")
+def checkInputs(infile, outfile):
+    '''Sanity check the input files'''
 
-INPUT_FILES = glob.glob(os.path.join(PARAMS["input_dir"], SUFFIX_PATTERN))
-if len(INPUT_FILES) == 0:
-    raise ValueError("No input files detected")
+    if PARAMS["input"].lower() == "fastq":
+        suffix_pattern = "*.fastq.*gz"
+    elif PARAMS["input"].lower() == "bam":
+        suffix_pattern = "*.bam"
+    else:
+        raise ValueError("this pipeline only supports fastq or bam files")
 
-NAME_FIELD_TITLES = PARAMS["name_field_titles"]
-NAME_FIELD_COUNT = len(",".split(NAME_FIELD_TITLES))
+    input_files = glob.glob(os.path.join(PARAMS["input_dir"], suffix_pattern))
+    if len(input_files) == 0:
+        raise ValueError("No input files detected")
 
-for sample_filename in INPUT_FILES:
-    sample_name = sample_filename.split(".")[0]
-    n_name_fields = len(sample_name.split("_"))
-    if NAME_FIELD_COUNT != n_name_fields:
-        raise ValueError("%(sample_filename)s does not have the expected"
-                         " number of name fields (%(NAME_FIELD_TITLES)s)."
-                         " Note that name fields must be separated with"
-                         " underscores" % locals())
+    name_field_titles = PARAMS["name_field_titles"]
+    name_field_count = len(",".split(name_field_titles))
+
+    for sample_filename in input_files:
+        sample_name = sample_filename.split(".")[0]
+        n_name_fields = len(sample_name.split("_"))
+        if name_field_count != n_name_fields:
+            raise ValueError("%(sample_filename)s does not have the expected"
+                             " number of name fields (%(name_field_titles)s)."
+                             " Note that name fields must be separated with"
+                             " underscores" % locals())
+
+    open(outfile, "a").close()
 
 
 # ########################################################################### #
@@ -307,7 +314,7 @@ HISAT_MEMORY = str(int(PARAMS["hisat_total_mb_memory"]) /
                    int(HISAT_THREADS)) + "M"
 
 
-@follows(mkdir("hisat.dir/first.pass.dir"))
+@follows(mkdir("hisat.dir/first.pass.dir"), checkInputs)
 @transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
            regex(r".*/(.*).fastq.*.gz"),
            r"hisat.dir/first.pass.dir/\1.novel.splice.sites.txt.gz")
@@ -435,7 +442,7 @@ else:
 
 # ------------------------- Geneset Definition ------------------------------ #
 
-@follows(mkdir("annotations.dir"))
+@follows(mkdir("annotations.dir"), checkInputs)
 @files(os.path.join(PARAMS["annotations_dir"],
                     PARAMS["annotations_geneset"]),
        "annotations.dir/geneset.gtf.gz")
