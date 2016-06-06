@@ -179,11 +179,10 @@ import PipelineScRnaseq as PipelineScRnaseq
 
 # ----------------------- < pipeline configuration > ------------------------ #
 
-try:
+if len(sys.argv) > 1:
     if(sys.argv[1] == "config") and __name__ == "__main__":
         sys.exit(P.main(sys.argv))
-except:
-    pass
+
 
 # -------------------------- < parse parameters > --------------------------- #
 
@@ -242,13 +241,13 @@ SAMPLE_FILES = glob.glob(os.path.join(PARAMS["input_dir"], suffix_pattern))
 if len(SAMPLE_FILES) == 0:
     raise ValueError("No input files detected")
 
-SAMPLE_IDS = [os.path.basename(SF).split(".")[0] for SF in SAMPLE_FILES]
+SAMPLE_IDS = set([os.path.basename(SF).split(".")[0] for SF in SAMPLE_FILES])
 NAME_FIELD_TITLES = PARAMS["name_field_titles"].split(",")
 
 # Check field names
-if any([x in NAME_FIELD_TITLES for x in ("sample_id", "sample_file")]):
-    raise ValueError('"sample_id" and "sample_file" are reserved and cannot'
-                     'be used as name field titles')
+if any([x in NAME_FIELD_TITLES for x in ("sample_id")]):
+    raise ValueError('"sample_id" is reserved and cannot'
+                     'be used as a name field title')
 
 # Sanity check file names
 for sample_id in SAMPLE_IDS:
@@ -259,11 +258,9 @@ for sample_id in SAMPLE_IDS:
                          " underscores" % locals())
 
 # Prepare sample table
-SAMPLES = pd.DataFrame([dict(zip(NAME_FIELD_TITLES, SAMPLE_ID.split("_")))
+SAMPLES = pd.DataFrame([dict(zip(["sample_id"] + NAME_FIELD_TITLES,
+                                 [SAMPLE_ID] + SAMPLE_ID.split("_")))
                         for SAMPLE_ID in SAMPLE_IDS])
-
-SAMPLES["sample_file"] = SAMPLE_FILES
-SAMPLES["sample_id"] = SAMPLE_IDS
 
 
 # ########################################################################### #
@@ -602,6 +599,7 @@ def cuffQuant(infiles, outfile):
     P.run()
 
 
+@active_if(PARAMS["cufflinks_cuffnorm_uq"])
 @follows(mkdir("cuffnorm.uq.dir"), cuffQuant)
 @merge([prepareGeneset, cuffQuant],
        "cuffnorm.uq.dir/cuffnorm_uq.log")
