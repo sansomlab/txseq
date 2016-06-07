@@ -176,6 +176,14 @@ import CGAT.Database as DB
 
 import PipelineScRnaseq as PipelineScRnaseq
 
+
+# ----------------------- < pipeline configuration > ------------------------ #
+
+if len(sys.argv) > 1:
+    if(sys.argv[1] == "config") and __name__ == "__main__":
+        sys.exit(P.main(sys.argv))
+
+
 # -------------------------- < parse parameters > --------------------------- #
 
 # load options from the config file
@@ -217,44 +225,49 @@ def connect():
 
 
 # ########################################################################### #
-# ###################### Sanity check filenames ############################# #
+# ############# Check sample files and prepare Sample table  ################ #
 # ########################################################################### #
 
-@files(None, "checkInputs.sentinel")
-def checkInputs(infile, outfile):
-    '''Sanity check the input files'''
+if PARAMS["input"].lower() == "fastq":
+    suffix_pattern = "*.fastq.*gz"
+elif PARAMS["input"].lower() == "bam":
+    suffix_pattern = "*.bam"
+else:
+    raise ValueError("this pipeline only supports fastq or bam files")
 
-    if PARAMS["input"].lower() == "fastq":
-        suffix_pattern = "*.fastq.*gz"
-    elif PARAMS["input"].lower() == "bam":
-        suffix_pattern = "*.bam"
-    else:
-        raise ValueError("this pipeline only supports fastq or bam files")
+SAMPLE_FILES = glob.glob(os.path.join(PARAMS["input_dir"], suffix_pattern))
 
-    input_files = glob.glob(os.path.join(PARAMS["input_dir"], suffix_pattern))
-    if len(input_files) == 0:
-        raise ValueError("No input files detected")
+# Check we have input
+if len(SAMPLE_FILES) == 0:
+    raise ValueError("No input files detected")
 
-    name_field_titles = PARAMS["name_field_titles"]
-    name_field_count = len(",".split(name_field_titles))
+SAMPLE_IDS = set([os.path.basename(SF).split(".")[0] for SF in SAMPLE_FILES])
+NAME_FIELD_TITLES = PARAMS["name_field_titles"].split(",")
 
-    for sample_filename in input_files:
-        sample_name = sample_filename.split(".")[0]
-        n_name_fields = len(sample_name.split("_"))
-        if name_field_count != n_name_fields:
-            raise ValueError("%(sample_filename)s does not have the expected"
-                             " number of name fields (%(name_field_titles)s)."
-                             " Note that name fields must be separated with"
-                             " underscores" % locals())
+# Check field names
+if any([x in NAME_FIELD_TITLES for x in ("sample_id")]):
+    raise ValueError('"sample_id" is reserved and cannot'
+                     'be used as a name field title')
 
-    open(outfile, "a").close()
+# Sanity check file names
+for sample_id in SAMPLE_IDS:
+    if len(sample_id.split("_")) != len(NAME_FIELD_TITLES):
+        raise ValueError("%(sample_id)s does not have the expected"
+                         " number of name fields (%(NAME_FIELD_TITLES)s)."
+                         " Note that name fields must be separated with"
+                         " underscores" % locals())
+
+# Prepare sample table
+SAMPLES = pd.DataFrame([dict(zip(["sample_id"] + NAME_FIELD_TITLES,
+                                 [SAMPLE_ID] + SAMPLE_ID.split("_")))
+                        for SAMPLE_ID in SAMPLE_IDS])
 
 
 # ########################################################################### #
 # ######## Define endedness, strandedness and spike-in parameters ########### #
 # ########################################################################### #
 
-# determine endedness
+# Determine endedness
 if str(PARAMS["paired"]).lower() in ("1", "true", "yes"):
     PAIRED = True
 elif str(PARAMS["paired"]).lower() in ("0", "false", "no"):
@@ -314,7 +327,7 @@ HISAT_MEMORY = str(int(PARAMS["hisat_total_mb_memory"]) /
                    int(HISAT_THREADS)) + "M"
 
 
-@follows(mkdir("hisat.dir/first.pass.dir"), checkInputs)
+@follows(mkdir("hisat.dir/first.pass.dir"))
 @transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
            regex(r".*/(.*).fastq.*.gz"),
            r"hisat.dir/first.pass.dir/\1.novel.splice.sites.txt.gz")
@@ -442,7 +455,7 @@ else:
 
 # ------------------------- Geneset Definition ------------------------------ #
 
-@follows(mkdir("annotations.dir"), checkInputs)
+@follows(mkdir("annotations.dir"))
 @files(os.path.join(PARAMS["annotations_dir"],
                     PARAMS["annotations_geneset"]),
        "annotations.dir/geneset.gtf.gz")
@@ -586,54 +599,68 @@ def cuffQuant(infiles, outfile):
     P.run()
 
 
-@follows(mkdir("cuffnorm.dir"), cuffQuant)
+@active_if(PARAMS["cufflinks_cuffnorm_uq"])
+@follows(mkdir("cuffnorm.uq.dir"), cuffQuant)
 @merge([prepareGeneset, cuffQuant],
-       "cuffnorm.dir/cuffnorm.log")
-def cuffNorm(infiles, outfile):
-    '''Calculate FPKMs using cuffNorm'''
+       "cuffnorm.uq.dir/cuffnorm_uq.log")
+def cuffNormUQ(infiles, outfile):
+    '''Calculate upper quartile (UQ) normalised FPKMs using cuffNorm
+    '''
 
     # parse the infiles
     geneset = infiles[0]
 
-    cxb_files = " ".join([f[:-len(".log")] + "/abundances.cxb"
-                          for f in infiles[1:]])
+    cxb_path = os.path.dirname(infiles[1])
+    cxb_name = "abundances.cxb"
+
+    # Group replicate samples
+    replicate_field = PARAMS["cufflinks_replicate_field"]
+
+    if replicate_field:
+        if replicate_field not in NAME_FIELD_TITLES:
+            raise ValueError("cufflinks replicate field not in field titles")
+
+        key = [T for T in NAME_FIELD_TITLES if T.lower() != replicate_field]
+        agg = SAMPLES.groupby(key)
+
+        labels = []
+        cxb_groups = []
+        for group, indices in agg.groups.iteritems():
+
+            labels.append("_".join(group))
+
+            group_cxb_files = [os.path.join(cxb_path, S, cxb_name)
+                               for S in
+                               SAMPLES.ix[indices]["sample_id"].values]
+
+            cxb_groups.append(",".join(group_cxb_files))
+
+        cxb_files = " ".join(cxb_groups)
+
+    else:
+
+        cxb_files = " ".join([os.path.join(cxb_path, S, cxb_name)
+                              for S in
+                              SAMPLES["sample_id"].values])
 
     # get the output directory and sample labels
     output_dir = os.path.dirname(outfile)
+    label_str = ",".join(labels)
 
-    labels = ",".join([f.split("/")[1]
-                       for f in cxb_files.split(" ")])
+    standards = PARAMS["cufflinks_standards"]
 
-    total_mem = PARAMS["cufflinks_cuffnorm_total_mb_memory"]
-
-    job_threads = PARAMS["cufflinks_cuffnorm_threads"]
-    job_memory = str(int(total_mem) / int(job_threads)) + "M"
-
-    cufflinks_strand = CUFFLINKS_STRAND
-
-    statement = ''' gtf=`mktemp -p %(local_tmpdir)s`;
-                    checkpoint;
-                    zcat %(geneset)s > $gtf;
-                    checkpoint;
-                    cuffnorm
-                        --output-dir %(output_dir)s
-                        --num-threads=%(job_threads)s
-                        --library-type %(cufflinks_strand)s
-                        --total-hits-norm
-                        --library-norm-method classic-fpkm
-                        --labels %(labels)s
-                        $gtf %(cxb_files)s > %(outfile)s;
-                     checkpoint;
-                     rm $gtf;
-                '''
-
-    P.run()
+    PipelineScRnaseq.runCuffNorm(geneset, cxb_files, label_str,
+                                 output_dir, outfile,
+                                 library_type=CUFFLINKS_STRAND,
+                                 standards_file=standards,
+                                 normalisation="quartile", hits="compatible")
 
 
-@transform(cuffNorm,
+@active_if(PARAMS["cufflinks_cuffnorm_uq"])
+@transform(cuffNormUQ,
            suffix(".log"),
            ".load")
-def loadCuffNorm(infile, outfile):
+def loadCuffNormUQ(infile, outfile):
     '''load the fpkm table from cuffnorm into the database'''
 
     fpkm_table = os.path.dirname(infile) + "/genes.fpkm_table"
@@ -643,6 +670,43 @@ def loadCuffNorm(infile, outfile):
 
 
 # ---------------------- Copynumber estimation ------------------------------ #
+
+@follows(mkdir("cuffnorm.classic.dir"), cuffQuant)
+@merge([prepareGeneset, cuffQuant],
+       "cuffnorm.classic.dir/cuffnorm_classic.log")
+def cuffNormClassic(infiles, outfile):
+    '''Calculate classic FPKMs using cuffNorm
+       for copy number estimation'''
+
+    cxb_files = " ".join([f[:-len(".log")] + "/abundances.cxb"
+                          for f in infiles[1:]])
+
+    label_str = ",".join([os.path.basename(f)[:-len(".log")]
+                          for f in infiles[1:]])
+
+    # parse the infiles
+    geneset = infiles[0]
+
+    # get the output directory and sample labels
+    output_dir = os.path.dirname(outfile)
+
+    PipelineScRnaseq.runCuffNorm(geneset, cxb_files, label_str,
+                                 output_dir, outfile,
+                                 library_type=CUFFLINKS_STRAND,
+                                 normalisation="classic-fpkm", hits="total")
+
+
+@transform(cuffNormClassic,
+           suffix(".log"),
+           ".load")
+def loadCuffNormClassic(infile, outfile):
+    '''load the fpkm table from cuffnorm into the database'''
+
+    fpkm_table = os.path.dirname(infile) + "/genes.fpkm_table"
+
+    P.load(fpkm_table, outfile,
+           options='-i "tracking_id"')
+
 
 @active_if(ERCC)
 @follows(mkdir("annotations.dir"))
@@ -658,7 +722,7 @@ def loadERCC92Info(infile, outfile):
 @follows(mkdir("copy.number.dir"))
 @transform(cuffQuant,
            regex(r".*/(.*).log"),
-           add_inputs(loadCuffNorm,
+           add_inputs(loadCuffNormClassic,
                       loadERCC92Info),
            r"copy.number.dir/\1.copynumber")
 def estimateCopyNumber(infiles, outfile):
@@ -682,7 +746,7 @@ def loadCopyNumber(infiles, outfile):
                          options='-i "gene_id"')
 
 
-@follows(loadCopyNumber, loadFeatureCounts)
+@follows(loadCuffNormUQ, loadCopyNumber, loadFeatureCounts)
 def quantitation():
     '''quantitation target'''
     pass
@@ -1036,7 +1100,7 @@ def loadSpikeVsGenome(infiles, outfile):
 # ------------------------- No. genes detected ------------------------------ #
 
 @follows(mkdir("qc.dir/"))
-@files(loadCuffNorm,
+@files(loadCuffNormClassic,
        "qc.dir/number.genes.detected.cufflinks")
 def numberGenesDetectedCufflinks(infile, outfile):
     '''Count no genes detected at copynumer > 0 in each sample'''
@@ -1158,29 +1222,12 @@ def loadFractionReadsSpliced(infiles, outfile):
 # ---------------- Prepare a post-mapping QC summary ------------------------ #
 
 @follows(mkdir("annotations.dir"))
-@merge(collectBAMs,
+@files(None,
        "annotations.dir/sample.information.txt")
 def sampleInformation(infiles, outfile):
     '''make a database table containing per-sample information.'''
 
-    name_field_list = PARAMS["name_field_titles"]
-    name_fields = name_field_list.strip().split(",")
-    if "sample_id" in name_fields:
-        raise ValueError('"sample_id" is reserved and cannot'
-                         'be used as a name field title')
-
-    header = ["\t".join(["sample_id"] + name_fields)]
-
-    contents = []
-    for infile in infiles:
-
-        sample_id = os.path.basename(infile).split(".")[0]
-
-        contents.append("\t".join([sample_id] +
-                                  sample_id.split("_")))
-
-    with open(outfile, "w") as of:
-        of.write("\n".join(header + contents))
+    SAMPLES.to_csv(outfile, index=False, sep="\t")
 
 
 @transform(sampleInformation,
@@ -1311,6 +1358,8 @@ def notebooks(infile, outfile):
 @follows(quantitation, qc, notebooks)
 def full():
     pass
+
+print sys.argv
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
