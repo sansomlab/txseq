@@ -639,9 +639,12 @@ def cuffNormUQ(infiles, outfile):
 
     else:
 
+        sample_ids = SAMPLES["sample_id"].values
+
         cxb_files = " ".join([os.path.join(cxb_path, S, cxb_name)
-                              for S in
-                              SAMPLES["sample_id"].values])
+                              for S in sample_ids])
+
+        labels = " ".join(sample_ids)
 
     # get the output directory and sample labels
     output_dir = os.path.dirname(outfile)
