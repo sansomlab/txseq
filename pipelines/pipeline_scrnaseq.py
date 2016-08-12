@@ -544,12 +544,13 @@ def featureCounts(infiles, outfile):
        "featureCounts.dir/featurecounts.load")
 def loadFeatureCounts(infiles, outfile):
 
-        P.concatenateAndLoad(infiles, outfile,
-                             regex_filename=".*/(.*).counts.gz",
-                             has_titles=False,
-                             cat="track",
-                             header="track,gene_id,counts",
-                             options='-i "gene_id"')
+    P.concatenateAndLoad(infiles, outfile,
+                         regex_filename=".*/(.*).counts.gz",
+                         has_titles=False,
+                         cat="track",
+                         header="track,gene_id,counts",
+                         options='-i "gene_id"',
+                         job_memory="10000M")
 
 
 # -------------------- FPKM (Cufflinks) quantitation------------------------- #
