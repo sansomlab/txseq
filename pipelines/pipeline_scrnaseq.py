@@ -550,7 +550,7 @@ def loadFeatureCounts(infiles, outfile):
                          cat="track",
                          header="track,gene_id,counts",
                          options='-i "gene_id"',
-                         job_memory="10000M")
+                         job_memory=PARAMS["sql_himem"])
 
 
 # -------------------- FPKM (Cufflinks) quantitation------------------------- #
@@ -747,7 +747,8 @@ def loadCopyNumber(infiles, outfile):
 
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename=".*/(.*).copynumber",
-                         options='-i "gene_id"')
+                         options='-i "gene_id"',
+                         job_memory=PARAMS["sql_himem"])
 
 
 @follows(loadCuffNormUQ, loadCopyNumber, loadFeatureCounts)
