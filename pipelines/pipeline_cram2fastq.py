@@ -313,6 +313,7 @@ def cram2fastq(infile, outfiles):
             raw_fastq_name = os.path.join(temp_dir, cram_basename)
             raw_fastq_names.append(raw_fastq_name)
 
+            job_memory = PARAMS["preprocess_memory"]
             statement = '''cramtools fastq
                                        --enumerate
                                        --reverse
