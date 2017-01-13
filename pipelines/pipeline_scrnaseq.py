@@ -284,12 +284,14 @@ if STRAND == "none":
     CUFFLINKS_STRAND = "fr-unstranded"
     FEATURECOUNTS_STRAND = "0"
     PICARD_STRAND = "NONE"
+    SALMON_STRAND = "U"
 
 elif STRAND == "forward":
     if PAIRED:
         HISAT_STRAND = "FR"
     else:
         HISAT_STRAND = "F"
+    SALMON_STRAND = "SF"
     CUFFLINKS_STRAND = "fr-secondstrand"
     FEATURECOUNTS_STRAND = "1"
     PICARD_STRAND = "FIRST_READ_TRANSCRIPTION_STRAND"
@@ -299,6 +301,7 @@ elif STRAND == "reverse":
         HISAT_STRAND = "RF"
     else:
         HISAT_STRAND = "R"
+    SALMON_STRAND = "SR"
     CUFFLINKS_STRAND = "fr-firststrand"
     FEATURECOUNTS_STRAND = "2"
     PICARD_STRAND = "SECOND_READ_TRANSCRIPTION_STRAND"
@@ -751,7 +754,96 @@ def loadCopyNumber(infiles, outfile):
                          job_memory=PARAMS["sql_himem"])
 
 
-@follows(loadCuffNormUQ, loadCopyNumber, loadFeatureCounts)
+# ---------------------- Salmon TPM calculation ----------------------------- #
+
+@active_if(PARAMS["salmon_active"])
+@follows(mkdir("salmon.dir"))
+@transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
+           regex(r".*/(.*).fastq.*.gz"),
+           r"salmon.dir/\1.log")
+def salmon(infile, outfile):
+    '''Per sample quantification using salmon'''
+
+    reads_one = infile
+    outname = outfile[:-len(".log")]
+
+    salmon_index = PARAMS["salmon_index"]
+
+    if PAIRED:
+        if STRAND != "none":
+            salmon_lib_type = "I" + SALMON_STRAND
+        else:
+            salmon_lib_type = SALMON_STRAND
+
+        reads_two = reads_one.replace(".1.", ".2.")
+        fastq_input = "-1 " + reads_one + " -2 " + reads_two
+    else:
+        salmon_lib_type = SALMON_STRAND
+        fastq_input = "-r " + reads_one
+
+    salmon_params = PARAMS["salmon_params"]
+    job_threads = PARAMS["salmon_threads"]
+
+    statement = '''salmon quant -i %(salmon_index)s
+                                -p %(job_threads)s
+                                %(salmon_params)s
+                                -l %(salmon_lib_type)s
+                                %(fastq_input)s
+                                -o %(outname)s
+                    &> %(outfile)s;
+              '''
+
+    P.run()
+
+
+@merge(salmon, "salmon.dir/salmon.load")
+def loadSalmon(infiles, outfile):
+    '''load the salmon results'''
+
+    tables = [x.replace(".log", "/quant.sf") for x in infiles]
+
+    P.concatenateAndLoad(tables, outfile,
+                         regex_filename=".*/(.*)/quant.sf",
+                         cat="sample_id",
+                         options="-i Name",
+                         job_memory=PARAMS["sql_himem"])
+
+
+@files(loadSalmon,
+       "salmon.dir/salmon_genes.txt")
+def salmonGeneTable(infile, outfile):
+    '''Prepare a per-gene tpm table'''
+
+    table = P.toTable(infile)
+    anndb = PARAMS["annotations_database"]
+
+    attach = '''attach "%(anndb)s" as anndb''' % locals()
+    con = sqlite3.connect(PARAMS["database_name"])
+    c = con.cursor()
+    c.execute(attach)
+
+    sql = '''select sample_id, gene_id, sum(TPM) tpm
+             from %(table)s t
+             inner join anndb.transcript_info i
+             on t.Name=i.transcript_id
+             group by gene_id, sample_id
+          ''' % locals()
+
+    df = pd.read_sql(sql, con)
+    df = df.pivot("gene_id", "sample_id", "tpm")
+    df.to_csv(outfile, sep="\t", index=True, index_label="gene_id")
+
+
+@transform(salmonGeneTable,
+           suffix(".txt"),
+           ".load")
+def loadSalmonGeneTable(infile, outfile):
+
+    P.load(infile, outfile, options='-i "gene_id"')
+
+
+@follows(loadCuffNormUQ, loadCopyNumber,
+         loadFeatureCounts, loadSalmonGeneTable)
 def quantitation():
     '''quantitation target'''
     pass
