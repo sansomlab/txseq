@@ -796,6 +796,7 @@ def salmon(infile, outfile):
     P.run()
 
 
+@active_if(PARAMS["salmon_active"])
 @merge(salmon, "salmon.dir/salmon.load")
 def loadSalmon(infiles, outfile):
     '''load the salmon results'''
@@ -809,6 +810,7 @@ def loadSalmon(infiles, outfile):
                          job_memory=PARAMS["sql_himem"])
 
 
+@active_if(PARAMS["salmon_active"])
 @files(loadSalmon,
        "salmon.dir/salmon_genes.txt")
 def salmonGeneTable(infile, outfile):
@@ -834,6 +836,7 @@ def salmonGeneTable(infile, outfile):
     df.to_csv(outfile, sep="\t", index=True, index_label="gene_id")
 
 
+@active_if(PARAMS["salmon_active"])
 @transform(salmonGeneTable,
            suffix(".txt"),
            ".load")
