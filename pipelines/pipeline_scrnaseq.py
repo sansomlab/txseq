@@ -200,7 +200,7 @@ else:
 
 # Set the database locations
 DATABASE = PARAMS["database_name"]
-ANN_DATABASE = PARAMS["annotations_database"]
+ANN_DATABASE = PARAMS["database"]
 
 
 # ------------------------- < utility functions > --------------------------- #
