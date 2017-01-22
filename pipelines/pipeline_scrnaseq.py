@@ -199,8 +199,8 @@ else:
     code_dir = PARAMS["code_dir"]
 
 # Set the database locations
-DATABASE = PARAMS["database_name"]
-ANN_DATABASE = PARAMS["database"]
+DATABASE = PARAMS["database"]
+ANN_DATABASE = PARAMS["annotations_database"]
 
 
 # ------------------------- < utility functions > --------------------------- #
