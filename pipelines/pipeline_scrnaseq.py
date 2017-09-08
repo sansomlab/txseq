@@ -1258,7 +1258,7 @@ def numberGenesDetectedFeatureCounts(infile, outfile):
                    on h.gene_id=i.gene_id
                ''' % locals()
 
-    melted_df = DB.fetch_DataFrame(statement, DATABASE, attach)
+    melted_df = DB.fetch_DataFrame(statement, DATABASE, str(attach))
 
     grouped_df = melted_df.groupby(["gene_biotype", "track"])
 
