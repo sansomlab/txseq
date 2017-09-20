@@ -258,8 +258,8 @@ for sample_id in SAMPLE_IDS:
                          " underscores" % locals())
 
 # Prepare sample table
-SAMPLES = pd.DataFrame([dict(zip(["sample_id"] + NAME_FIELD_TITLES,
-                                 [SAMPLE_ID] + SAMPLE_ID.split("_")))
+SAMPLES = pd.DataFrame([dict(list(zip(["sample_id"] + NAME_FIELD_TITLES,
+                                 [SAMPLE_ID] + SAMPLE_ID.split("_"))))
                         for SAMPLE_ID in SAMPLE_IDS])
 
 
@@ -629,7 +629,7 @@ def cuffNormUQ(infiles, outfile):
 
         labels = []
         cxb_groups = []
-        for group, indices in agg.groups.iteritems():
+        for group, indices in agg.groups.items():
 
             labels.append("_".join(group))
 
@@ -1459,7 +1459,7 @@ def notebooks(infile, outfile):
 def full():
     pass
 
-print sys.argv
+print(sys.argv)
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
