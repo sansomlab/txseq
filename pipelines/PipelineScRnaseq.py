@@ -34,7 +34,7 @@ def runCuffNorm(geneset, cxb_files, labels,
     total_mem = PARAMS["cufflinks_cuffnorm_total_mb_memory"]
 
     job_threads = PARAMS["cufflinks_cuffnorm_threads"]
-    job_memory = str(int(total_mem) / int(job_threads)) + "M"
+    job_memory = str(int(total_mem) // int(job_threads)) + "M"
 
     hits_method = "--%(hits)s-hits-norm" % locals()
 

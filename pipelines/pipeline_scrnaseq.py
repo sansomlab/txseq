@@ -202,6 +202,7 @@ else:
 DATABASE = PARAMS["database"]
 ANN_DATABASE = PARAMS["annotations_database"]
 
+print(PARAMS)
 
 # ------------------------- < utility functions > --------------------------- #
 
@@ -326,7 +327,7 @@ else:
     HISAT_STRAND_PARAM = ""
 
 HISAT_THREADS = PARAMS["hisat_threads"]
-HISAT_MEMORY = str(int(PARAMS["hisat_total_mb_memory"]) /
+HISAT_MEMORY = str(int(PARAMS["hisat_total_mb_memory"]) //
                    int(HISAT_THREADS)) + "M"
 
 
@@ -859,7 +860,7 @@ def quantitation():
 # -------------------- Set generic Picard options --------------------------- #
 
 PICARD_THREADS = PARAMS["picard_threads"]
-PICARD_MEMORY = str(int(PARAMS["picard_total_mb_memory"]) /
+PICARD_MEMORY = str(int(PARAMS["picard_total_mb_memory"]) //
                     int(PICARD_THREADS)) + "M"
 
 
