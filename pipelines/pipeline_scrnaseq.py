@@ -206,6 +206,7 @@ print(PARAMS)
 
 # ------------------------- < utility functions > --------------------------- #
 
+
 def connect():
     '''utility function to connect to database.
 
@@ -260,7 +261,7 @@ for sample_id in SAMPLE_IDS:
 
 # Prepare sample table
 SAMPLES = pd.DataFrame([dict(list(zip(["sample_id"] + NAME_FIELD_TITLES,
-                                 [SAMPLE_ID] + SAMPLE_ID.split("_"))))
+                                      [SAMPLE_ID] + SAMPLE_ID.split("_"))))
                         for SAMPLE_ID in SAMPLE_IDS])
 
 
