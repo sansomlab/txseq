@@ -6,3 +6,6 @@
 
 # ignore checkpoint folder from ipython notebooks
 .ipynb_checkpoints/
+
+# ignore configuration files from PyCharm
+.idea/
