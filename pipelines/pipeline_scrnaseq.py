@@ -202,8 +202,10 @@ else:
 DATABASE = PARAMS["database"]
 ANN_DATABASE = PARAMS["annotations_database"]
 
+print(PARAMS)
 
 # ------------------------- < utility functions > --------------------------- #
+
 
 def connect():
     '''utility function to connect to database.
@@ -258,8 +260,8 @@ for sample_id in SAMPLE_IDS:
                          " underscores" % locals())
 
 # Prepare sample table
-SAMPLES = pd.DataFrame([dict(zip(["sample_id"] + NAME_FIELD_TITLES,
-                                 [SAMPLE_ID] + SAMPLE_ID.split("_")))
+SAMPLES = pd.DataFrame([dict(list(zip(["sample_id"] + NAME_FIELD_TITLES,
+                                      [SAMPLE_ID] + SAMPLE_ID.split("_"))))
                         for SAMPLE_ID in SAMPLE_IDS])
 
 
@@ -326,7 +328,7 @@ else:
     HISAT_STRAND_PARAM = ""
 
 HISAT_THREADS = PARAMS["hisat_threads"]
-HISAT_MEMORY = str(int(PARAMS["hisat_total_mb_memory"]) /
+HISAT_MEMORY = str(int(PARAMS["hisat_total_mb_memory"]) //
                    int(HISAT_THREADS)) + "M"
 
 
@@ -629,7 +631,7 @@ def cuffNormUQ(infiles, outfile):
 
         labels = []
         cxb_groups = []
-        for group, indices in agg.groups.iteritems():
+        for group, indices in agg.groups.items():
 
             labels.append("_".join(group))
 
@@ -859,7 +861,7 @@ def quantitation():
 # -------------------- Set generic Picard options --------------------------- #
 
 PICARD_THREADS = PARAMS["picard_threads"]
-PICARD_MEMORY = str(int(PARAMS["picard_total_mb_memory"]) /
+PICARD_MEMORY = str(int(PARAMS["picard_total_mb_memory"]) //
                     int(PICARD_THREADS)) + "M"
 
 
@@ -1459,7 +1461,7 @@ def notebooks(infile, outfile):
 def full():
     pass
 
-print sys.argv
+print(sys.argv)
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
