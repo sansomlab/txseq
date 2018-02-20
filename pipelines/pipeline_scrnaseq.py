@@ -761,33 +761,33 @@ def loadCopyNumber(infiles, outfile):
 # For salmon quantification we now use the full set of ensembl cdnas and ncrnas
 #
 # As the CGAT pipeline_geneset.py removes annotations for transcripts mapping
-# to mitocondrial contigs and scaffolds it is necessary to prepare an annotation table
+# to mitocondrial contigs and scaffolds an annotation table is first prepared.
 
 @follows(mkdir("annotations.dir"))
 @files(PARAMS["salmon_annotations"],
        "annotations.dir/transcript_info.tsv.gz")
 def salmonAnnotations(infile, outfile):
-       '''Prepare an annotation table containing information for all
-       transcripts quantified by Salmon'''
+    '''Prepare an annotation table containing information for all
+    transcripts quantified by Salmon'''
 
-       job_memory = "10G"
+    job_memory = "10G"
 
-       statement = '''zcat %(infile)s
-                      | cgat gtf2tsv -f
-                      | gzip -c
-                      > %(outfile)s'''
+    statement = '''zcat %(infile)s
+                   | cgat gtf2tsv -f
+                   | gzip -c
+                   > %(outfile)s'''
 
-       P.run()
+    P.run()
+
 
 @transform(salmonAnnotations,
            suffix(".tsv.gz"),
            ".load")
 def loadSalmonAnnotations(infile, outfile):
-       '''load the annotations for salmon'''
+    '''load the annotations for salmon'''
 
-       # will use ~15G RAM
-       P.load(infile, outfile, options = '-i "gene_id" -i "transcript_id"')
-
+    # will use ~15G RAM
+    P.load(infile, outfile, options='-i "gene_id" -i "transcript_id"')
 
 
 @active_if(PARAMS["salmon_active"])
