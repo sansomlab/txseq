@@ -400,6 +400,7 @@ def novelHisatSpliceSites(infiles, outfile):
 
     P.run()
 
+
 @transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
            regex(r".*/(.*).fastq.*.gz"),
            add_inputs(novelHisatSpliceSites),
