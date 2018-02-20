@@ -758,6 +758,38 @@ def loadCopyNumber(infiles, outfile):
 
 # ---------------------- Salmon TPM calculation ----------------------------- #
 
+# For salmon quantification we now use the full set of ensembl cdnas and ncrnas
+#
+# As the CGAT pipeline_geneset.py removes annotations for transcripts mapping
+# to mitocondrial contigs and scaffolds it is necessary to prepare an annotation table
+
+@follows(mkdir("annotations.dir"))
+@files(PARAMS["salmon_annotations"],
+       "annotations.dir/transcript_info.tsv.gz")
+def salmonAnnotations(infile, outfile):
+       '''Prepare an annotation table containing information for all
+       transcripts quantified by Salmon'''
+
+       job_memory = "10G"
+
+       statement = '''zcat %(infile)s
+                      | cgat gtf2tsv -f
+                      | gzip -c
+                      > %(outfile)s'''
+
+       P.run()
+
+@transform(salmonAnnotations,
+           suffix(".tsv.gz"),
+           ".load")
+def loadSalmonAnnotations(infile, outfile):
+       '''load the annotations for salmon'''
+
+       # will use ~15G RAM
+       P.load(infile, outfile, options = '-i "gene_id" -i "transcript_id"')
+
+
+
 @active_if(PARAMS["salmon_active"])
 @follows(mkdir("salmon.dir"))
 @transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
@@ -819,16 +851,13 @@ def salmonGeneTable(infile, outfile):
     '''Prepare a per-gene tpm table'''
 
     table = P.toTable(infile)
-    anndb = PARAMS["annotations_database"]
 
-    attach = '''attach "%(anndb)s" as anndb''' % locals()
     con = sqlite3.connect(PARAMS["database_name"])
     c = con.cursor()
-    c.execute(attach)
 
     sql = '''select sample_id, gene_id, sum(TPM) tpm
              from %(table)s t
-             inner join anndb.transcript_info i
+             inner join transcript_info i
              on t.Name=i.transcript_id
              group by gene_id, sample_id
           ''' % locals()
