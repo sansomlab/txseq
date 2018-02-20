@@ -78,6 +78,11 @@ Input files
   of single or paired-end fastq files to be present in the "input_dir"
   specificed in the pipeline.ini file (default = "data.dir")
 
+- where there are multiple Fastq file per sample, the per-sample fastqs
+  should be placed in directories which end with the pattern:
+  (i) ".1.gz" - for paired end data
+  (ii) ".gz" - for single end data
+
 * BAMs
 
 - location of directory containing the BAM files is specified in the
@@ -341,6 +346,12 @@ def hisatFirstPass(infile, outfile):
 
     reads_one = infile
 
+    if os.path.isdir(reads_one):
+        reads_one = glob.glob(os.path.join(reads_one, fastq_pattern))
+
+    else:
+        reads_one = [reads_one]
+
     index = PARAMS["hisat_index"]
     log = outfile + ".log"
     out_name = outfile[:-len(".gz")]
@@ -351,10 +362,11 @@ def hisatFirstPass(infile, outfile):
     job_memory = HISAT_MEMORY
 
     if PAIRED:
-        reads_two = reads_one.replace(".1.", ".2.")
-        fastq_input = "-1 " + reads_one + " -2 " + reads_two
+        reads_two = [x[:-len(".1.gz")] + ".2.gz" for x in reads_one]
+        fastq_input = "-1 " + ",".join(reads_one) +\
+                      " -2 " + ",".join(reads_two)
     else:
-        fastq_input = "-U " + reads_one
+        fastq_input = "-U " + ",".join(reads_one)
 
     hisat_strand_param = HISAT_STRAND_PARAM
 
@@ -388,8 +400,7 @@ def novelHisatSpliceSites(infiles, outfile):
 
     P.run()
 
-
-@transform(glob.glob("data.dir/" + fastq_pattern),
+@transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
            regex(r".*/(.*).fastq.*.gz"),
            add_inputs(novelHisatSpliceSites),
            r"hisat.dir/\1.bam")
@@ -397,6 +408,11 @@ def hisatAlignments(infiles, outfile):
     '''Align reads using hisat with known and novel junctions'''
 
     reads_one, novel_splice_sites = infiles
+
+    if os.path.isdir(reads_one):
+        reads_one = glob.glob(os.path.join(reads_one, fastq_pattern))
+    else:
+        reads_one = [reads_one]
 
     index = PARAMS["hisat_index"]
     log = outfile + ".log"
@@ -406,10 +422,11 @@ def hisatAlignments(infiles, outfile):
     job_memory = HISAT_MEMORY
 
     if PAIRED:
-        reads_two = reads_one.replace(".1.", ".2.")
-        fastq_input = "-1 " + reads_one + " -2 " + reads_two
+        reads_two = [x[:-len(".1.gz")] + ".2.gz" for x in reads_one]
+        fastq_input = "-1 " + ",".join(reads_one) +\
+                      " -2 " + ",".join(reads_two)
     else:
-        fastq_input = "-U " + reads_one
+        fastq_input = "-U " + ",".join(reads_one)
 
     hisat_strand_param = HISAT_STRAND_PARAM
 
@@ -801,6 +818,12 @@ def salmon(infile, outfile):
     reads_one = infile
     outname = outfile[:-len(".log")]
 
+    if os.path.isdir(reads_one):
+        reads_one = glob.glob(os.path.join(reads_one, fastq_pattern))
+
+    else:
+        reads_one = [reads_one]
+
     salmon_index = PARAMS["salmon_index"]
 
     if PAIRED:
@@ -809,11 +832,13 @@ def salmon(infile, outfile):
         else:
             salmon_lib_type = SALMON_STRAND
 
-        reads_two = reads_one.replace(".1.", ".2.")
-        fastq_input = "-1 " + reads_one + " -2 " + reads_two
+        reads_two = [x[:-len(".1.gz")] + ".2.gz" for x in reads_one]
+        fastq_input = "-1 " + " ".join(reads_one) +\
+                      " -2 " + " ".join(reads_two)
+
     else:
         salmon_lib_type = SALMON_STRAND
-        fastq_input = "-r " + reads_one
+        fastq_input = "-r " + " ".join(reads_one)
 
     salmon_params = PARAMS["salmon_params"]
     job_threads = PARAMS["salmon_threads"]
@@ -830,6 +855,7 @@ def salmon(infile, outfile):
     P.run()
 
 
+@follows(loadSalmonAnnotations)
 @active_if(PARAMS["salmon_active"])
 @merge(salmon, "salmon.dir/salmon.load")
 def loadSalmon(infiles, outfile):
