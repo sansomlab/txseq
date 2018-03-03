@@ -608,7 +608,6 @@ def loadFeaturecountsTables(infile, outfile):
     P.load(infile, outfile, options='-i "gene_id"')
 
 
-
 # -------------------- FPKM (Cufflinks) quantitation------------------------- #
 
 @follows(mkdir("cuffquant.dir"))
@@ -995,6 +994,7 @@ def loadSalmonGeneTables(infile, outfile):
 
     P.load(infile, outfile, options='-i "gene_id"')
 
+
 @active_if(PARAMS["salmon_active"])
 @transform([salmonTranscriptTPMs, salmonTranscriptCounts],
            suffix(".txt"),
@@ -1002,7 +1002,6 @@ def loadSalmonGeneTables(infile, outfile):
 def loadSalmonTranscriptTables(infile, outfile):
 
     P.load(infile, outfile, options='-i "transcript_id"')
-
 
 
 @follows(loadCuffNormUQ, loadCopyNumber,
