@@ -313,6 +313,11 @@ elif STRAND == "reverse":
     FEATURECOUNTS_STRAND = "2"
     PICARD_STRAND = "SECOND_READ_TRANSCRIPTION_STRAND"
 
+if PAIRED:
+    SALMON_LIBTYPE = "I" + SALMON_STRAND
+else:
+    SALMON_LIBTYPE = SALMON_STRAND
+
 ERCC = PARAMS["ercc"]
 
 # ---------------------- < specific pipeline tasks > ------------------------ #
@@ -576,6 +581,33 @@ def loadFeatureCounts(infiles, outfile):
                          job_memory=PARAMS["sql_himem"])
 
 
+@files(loadFeatureCounts,
+       "featureCounts.dir/featurecounts_counts.txt")
+def featurecountsGeneCounts(infile, outfile):
+    '''Prepare a gene x sample table of featureCounts counts'''
+
+    table = P.toTable(infile)
+
+    con = sqlite3.connect(PARAMS["database_name"])
+    c = con.cursor()
+
+    sql = '''select track, gene_id, counts
+             from %(table)s t
+          ''' % locals()
+
+    df = pd.read_sql(sql, con)
+    df = df.pivot("gene_id", "track", "counts")
+    df.to_csv(outfile, sep="\t", index=True, index_label="gene_id")
+
+
+@transform(featurecountsGeneCounts,
+           suffix(".txt"),
+           ".load")
+def loadFeaturecountsTables(infile, outfile):
+
+    P.load(infile, outfile, options='-i "gene_id"')
+
+
 # -------------------- FPKM (Cufflinks) quantitation------------------------- #
 
 @follows(mkdir("cuffquant.dir"))
@@ -731,6 +763,8 @@ def loadCuffNormClassic(infile, outfile):
 
     fpkm_table = os.path.dirname(infile) + "/genes.fpkm_table"
 
+    to_cluster = True
+
     P.load(fpkm_table, outfile,
            options='-i "tracking_id"')
 
@@ -828,26 +862,21 @@ def salmon(infile, outfile):
     salmon_index = PARAMS["salmon_index"]
 
     if PAIRED:
-        if STRAND != "none":
-            salmon_lib_type = "I" + SALMON_STRAND
-        else:
-            salmon_lib_type = SALMON_STRAND
-
         reads_two = [x[:-len(".1.gz")] + ".2.gz" for x in reads_one]
         fastq_input = "-1 " + " ".join(reads_one) +\
                       " -2 " + " ".join(reads_two)
 
     else:
-        salmon_lib_type = SALMON_STRAND
         fastq_input = "-r " + " ".join(reads_one)
 
+    salmon_libtype = SALMON_LIBTYPE
     salmon_params = PARAMS["salmon_params"]
     job_threads = PARAMS["salmon_threads"]
 
     statement = '''salmon quant -i %(salmon_index)s
                                 -p %(job_threads)s
                                 %(salmon_params)s
-                                -l %(salmon_lib_type)s
+                                -l %(salmon_libtype)s
                                 %(fastq_input)s
                                 -o %(outname)s
                     &> %(outfile)s;
@@ -873,9 +902,9 @@ def loadSalmon(infiles, outfile):
 
 @active_if(PARAMS["salmon_active"])
 @files(loadSalmon,
-       "salmon.dir/salmon_genes.txt")
-def salmonGeneTable(infile, outfile):
-    '''Prepare a per-gene tpm table'''
+       "salmon.dir/salmon_gene_tpms.txt")
+def salmonGeneTPMs(infile, outfile):
+    '''Prepare a gene x sample table of salmon TPMs'''
 
     table = P.toTable(infile)
 
@@ -895,16 +924,89 @@ def salmonGeneTable(infile, outfile):
 
 
 @active_if(PARAMS["salmon_active"])
-@transform(salmonGeneTable,
+@files(loadSalmon,
+       "salmon.dir/salmon_transcript_tpms.txt")
+def salmonTranscriptTPMs(infile, outfile):
+    '''Prepare a transcript x sample table of salmon TPMs'''
+
+    table = P.toTable(infile)
+
+    con = sqlite3.connect(PARAMS["database_name"])
+    c = con.cursor()
+
+    sql = '''select sample_id, Name transcript_id, TPM tpm
+             from %(table)s t
+          ''' % locals()
+
+    df = pd.read_sql(sql, con)
+    df = df.pivot("transcript_id", "sample_id", "tpm")
+    df.to_csv(outfile, sep="\t", index=True, index_label="transcript_id")
+
+
+@active_if(PARAMS["salmon_active"])
+@files(loadSalmon,
+       "salmon.dir/salmon_gene_counts.txt")
+def salmonGeneCounts(infile, outfile):
+    '''Prepare a gene x sample table of salmon counts'''
+
+    table = P.toTable(infile)
+
+    con = sqlite3.connect(PARAMS["database_name"])
+    c = con.cursor()
+
+    sql = '''select sample_id, gene_id, sum(NumReads) counts
+             from %(table)s t
+             inner join transcript_info i
+             on t.Name=i.transcript_id
+             group by gene_id, sample_id
+          ''' % locals()
+
+    df = pd.read_sql(sql, con)
+    df = df.pivot("gene_id", "sample_id", "counts")
+    df.to_csv(outfile, sep="\t", index=True, index_label="gene_id")
+
+
+@active_if(PARAMS["salmon_active"])
+@files(loadSalmon,
+       "salmon.dir/salmon_transcript_counts.txt")
+def salmonTranscriptCounts(infile, outfile):
+    '''Prepare a transcript x sample table of salmon counts'''
+
+    table = P.toTable(infile)
+
+    con = sqlite3.connect(PARAMS["database_name"])
+    c = con.cursor()
+
+    sql = '''select sample_id, Name transcript_id, NumReads counts
+             from %(table)s t
+          ''' % locals()
+
+    df = pd.read_sql(sql, con)
+    df = df.pivot("transcript_id", "sample_id", "counts")
+    df.to_csv(outfile, sep="\t", index=True, index_label="transcript_id")
+
+
+@active_if(PARAMS["salmon_active"])
+@transform([salmonGeneTPMs, salmonGeneCounts],
            suffix(".txt"),
            ".load")
-def loadSalmonGeneTable(infile, outfile):
+def loadSalmonGeneTables(infile, outfile):
 
     P.load(infile, outfile, options='-i "gene_id"')
 
 
+@active_if(PARAMS["salmon_active"])
+@transform([salmonTranscriptTPMs, salmonTranscriptCounts],
+           suffix(".txt"),
+           ".load")
+def loadSalmonTranscriptTables(infile, outfile):
+
+    P.load(infile, outfile, options='-i "transcript_id"')
+
+
 @follows(loadCuffNormUQ, loadCopyNumber,
-         loadFeatureCounts, loadSalmonGeneTable)
+         loadFeatureCounts, loadFeaturecountsTables,
+         loadSalmonGeneTables, loadSalmonTranscriptTables)
 def quantitation():
     '''quantitation target'''
     pass
