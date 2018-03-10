@@ -44,7 +44,8 @@ This pipeline performs the follow tasks:
       - See pipeline.ini and below for filename syntax guidance.
 
 (2) Quantitation of gene expression
-      - Ensembl protein coding + ERCC spikes
+      - Ensembl protein coding (+/- ERCC spikes)
+      - Salmon is used to calculate TPM values
       - Cufflinks (cuffquant + cuffnorm) is run for copy number estimation
       - featureCounts (from the subread package) is run for counting reads
 
@@ -484,14 +485,12 @@ else:
 # ------------------------- Geneset Definition ------------------------------ #
 
 @follows(mkdir("annotations.dir"))
-@files(os.path.join(PARAMS["annotations_dir"],
-                    PARAMS["annotations_geneset"]),
+@files(PARAMS["annotations_geneset"],
        "annotations.dir/geneset.gtf.gz")
-def prepareGeneset(infiles, outfile):
-    '''Preparation of geneset for quantitation.
-       As parameterised, (1) the geneset can be filtered
-       for e.g. protein coding genes (default) and (2) ERCC92
-       ERCC92 GTF entries are appended'''
+def prepareGenesetGTF(infiles, outfile):
+    '''Preparation of gtf for quantitation:
+       Spike-in GTF entries are optionally appended
+       to the reference annotation'''
 
     geneset = infiles
     outname = outfile[:-len(".gz")]
@@ -514,12 +513,44 @@ def prepareGeneset(infiles, outfile):
     P.run()
 
 
+@follows(mkdir("annotations.dir"))
+@files(PARAMS["annotations_geneset"],
+       "annotations.dir/transcript_info.tsv.gz")
+def prepareAnnotations(infile, outfile):
+    '''Prepare an annotation table containing information for all
+    of the Ensembl transcripts'''
+
+    job_memory = "10G"
+
+    statement = '''zcat %(infile)s
+                   | cgat gtf2tsv -f
+                   | gzip -c
+                   > %(outfile)s'''
+
+    P.run()
+
+
+@transform(prepareAnnotations,
+           suffix(".tsv.gz"),
+           ".load")
+def loadAnnotations(infile, outfile):
+    '''load the annotations for salmon'''
+
+    # will use ~15G RAM
+    P.load(infile, outfile, options='-i "gene_id" -i "transcript_id"')
+
+
+@follows(prepareGenesetGTF, loadAnnotations)
+def annotations():
+    pass
+
+
 # ----------------------------- Read Counting ------------------------------- #
 
 @follows(mkdir("featureCounts.dir"))
 @transform(collectBAMs,
            regex(r".*/(.*).bam"),
-           add_inputs(prepareGeneset),
+           add_inputs(prepareGenesetGTF),
            r"featureCounts.dir/\1.counts.gz")
 def featureCounts(infiles, outfile):
     '''Run featureCounts. Note that we first need
@@ -587,7 +618,6 @@ def featurecountsGeneCounts(infile, outfile):
     '''Prepare a gene x sample table of featureCounts counts'''
 
     table = P.toTable(infile)
-
     con = sqlite3.connect(PARAMS["database_name"])
     c = con.cursor()
 
@@ -608,12 +638,170 @@ def loadFeaturecountsTables(infile, outfile):
     P.load(infile, outfile, options='-i "gene_id"')
 
 
+# ---------------------- Salmon TPM calculation ----------------------------- #
+
+@active_if(PARAMS["salmon_active"])
+@follows(mkdir("salmon.dir"))
+@transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
+           regex(r".*/(.*).fastq.*.gz"),
+           r"salmon.dir/\1.log")
+def salmon(infile, outfile):
+    '''Per sample quantification using salmon'''
+
+    reads_one = infile
+    outname = outfile[:-len(".log")]
+
+    if os.path.isdir(reads_one):
+        reads_one = glob.glob(os.path.join(reads_one, fastq_pattern))
+
+    else:
+        reads_one = [reads_one]
+
+    salmon_index = PARAMS["salmon_index"]
+
+    if PAIRED:
+        reads_two = [x[:-len(".1.gz")] + ".2.gz" for x in reads_one]
+        fastq_input = "-1 " + " ".join(reads_one) +\
+                      " -2 " + " ".join(reads_two)
+
+    else:
+        fastq_input = "-r " + " ".join(reads_one)
+
+    salmon_libtype = SALMON_LIBTYPE
+    salmon_params = PARAMS["salmon_params"]
+    job_threads = PARAMS["salmon_threads"]
+
+    statement = '''salmon quant -i %(salmon_index)s
+                                -p %(job_threads)s
+                                %(salmon_params)s
+                                -l %(salmon_libtype)s
+                                %(fastq_input)s
+                                -o %(outname)s
+                    &> %(outfile)s;
+              '''
+
+    P.run()
+
+
+@merge(salmon, "salmon.dir/salmon.load")
+def loadSalmon(infiles, outfile):
+    '''load the salmon results'''
+
+    tables = [x.replace(".log", "/quant.sf") for x in infiles]
+
+    P.concatenateAndLoad(tables, outfile,
+                         regex_filename=".*/(.*)/quant.sf",
+                         cat="sample_id",
+                         options="-i Name",
+                         job_memory=PARAMS["sql_himem"])
+
+
+@transform(loadSalmon,
+            regex(r"(.*)/*.load"),
+            add_inputs(loadAnnotations),
+            r"\1/salmon_genes_tpms.txt")
+def salmonGeneTPMs(infile, outfile):
+    '''Prepare a gene x sample table of salmon TPMs'''
+
+    tpms, annotations = [P.toTable(x) for x in infiles]
+
+    con = sqlite3.connect(PARAMS["database_name"])
+    c = con.cursor()
+
+    sql = '''select distinct transcript_id, sample_id, gene_id, TPM tpm
+             from %(tpms)s t
+             inner join %(annotations)s a
+             on t.Name=a.transcript_id
+             group by gene_id, sample_id
+          ''' % locals()
+
+    df = pd.read_sql(sql, con)
+    df = df.pivot("gene_id", "sample_id", "tpm")
+    df.to_csv(outfile, sep="\t", index=True, index_label="gene_id")
+
+
+@files(loadSalmon,
+       "salmon.dir/salmon_transcript_tpms.txt")
+def salmonTranscriptTPMs(infile, outfile):
+    '''Prepare a transcript x sample table of salmon TPMs'''
+
+    table = P.toTable(infile)
+
+    con = sqlite3.connect(PARAMS["database_name"])
+    c = con.cursor()
+
+    sql = '''select sample_id, Name transcript_id, TPM tpm
+             from %(table)s t
+          ''' % locals()
+
+    df = pd.read_sql(sql, con)
+    df = df.pivot("transcript_id", "sample_id", "tpm")
+    df.to_csv(outfile, sep="\t", index=True, index_label="transcript_id")
+
+
+@files(loadSalmon,
+       "salmon.dir/salmon_gene_counts.txt")
+def salmonGeneCounts(infile, outfile):
+    '''Prepare a gene x sample table of salmon counts'''
+
+    table = P.toTable(infile)
+
+    con = sqlite3.connect(PARAMS["database_name"])
+    c = con.cursor()
+
+    sql = '''select sample_id, gene_id, sum(NumReads) counts
+             from %(table)s t
+             inner join transcript_info i
+             on t.Name=i.transcript_id
+             group by gene_id, sample_id
+          ''' % locals()
+
+    df = pd.read_sql(sql, con)
+    df = df.pivot("gene_id", "sample_id", "counts")
+    df.to_csv(outfile, sep="\t", index=True, index_label="gene_id")
+
+
+@files(loadSalmon,
+       "salmon.dir/salmon_transcript_counts.txt")
+def salmonTranscriptCounts(infile, outfile):
+    '''Prepare a transcript x sample table of salmon counts'''
+
+    table = P.toTable(infile)
+
+    con = sqlite3.connect(PARAMS["database_name"])
+    c = con.cursor()
+
+    sql = '''select sample_id, Name transcript_id, NumReads counts
+             from %(table)s t
+          ''' % locals()
+
+    df = pd.read_sql(sql, con)
+    df = df.pivot("transcript_id", "sample_id", "counts")
+    df.to_csv(outfile, sep="\t", index=True, index_label="transcript_id")
+
+
+@transform([salmonGeneTPMs, salmonGeneCounts],
+           suffix(".txt"),
+           ".load")
+def loadSalmonGeneTables(infile, outfile):
+
+    P.load(infile, outfile, options='-i "gene_id"')
+
+
+@transform([salmonTranscriptTPMs, salmonTranscriptCounts],
+           suffix(".txt"),
+           ".load")
+def loadSalmonTranscriptTables(infile, outfile):
+
+    P.load(infile, outfile, options='-i "transcript_id"')
+
+
 # -------------------- FPKM (Cufflinks) quantitation------------------------- #
 
 @follows(mkdir("cuffquant.dir"))
 @transform(collectBAMs,
            regex(r".*/(.*).bam"),
-           add_inputs(prepareGeneset),
+           add_inputs(prepareGenesetGTF),
            r"cuffquant.dir/\1.log")
 def cuffQuant(infiles, outfile):
     '''Per sample quantification using cuffquant'''
@@ -657,7 +845,7 @@ def cuffQuant(infiles, outfile):
 
 @active_if(PARAMS["cufflinks_cuffnorm_uq"])
 @follows(mkdir("cuffnorm.uq.dir"), cuffQuant)
-@merge([prepareGeneset, cuffQuant],
+@merge([prepareGenesetGTF, cuffQuant],
        "cuffnorm.uq.dir/cuffnorm_uq.log")
 def cuffNormUQ(infiles, outfile):
     '''Calculate upper quartile (UQ) normalised FPKMs using cuffNorm
@@ -731,7 +919,7 @@ def loadCuffNormUQ(infile, outfile):
 # ---------------------- Copynumber estimation ------------------------------ #
 
 @follows(mkdir("cuffnorm.classic.dir"), cuffQuant)
-@merge([prepareGeneset, cuffQuant],
+@merge([prepareGenesetGTF, cuffQuant],
        "cuffnorm.classic.dir/cuffnorm_classic.log")
 def cuffNormClassic(infiles, outfile):
     '''Calculate classic FPKMs using cuffNorm
@@ -806,202 +994,6 @@ def loadCopyNumber(infiles, outfile):
                          regex_filename=".*/(.*).copynumber",
                          options='-i "gene_id"',
                          job_memory=PARAMS["sql_himem"])
-
-
-# ---------------------- Salmon TPM calculation ----------------------------- #
-
-# For salmon quantification we now use the full set of ensembl cdnas and ncrnas
-#
-# As the CGAT pipeline_geneset.py removes annotations for transcripts mapping
-# to mitocondrial contigs and scaffolds an annotation table is first prepared.
-
-@follows(mkdir("annotations.dir"))
-@files(PARAMS["salmon_annotations"],
-       "annotations.dir/transcript_info.tsv.gz")
-def salmonAnnotations(infile, outfile):
-    '''Prepare an annotation table containing information for all
-    transcripts quantified by Salmon'''
-
-    job_memory = "10G"
-
-    statement = '''zcat %(infile)s
-                   | cgat gtf2tsv -f
-                   | gzip -c
-                   > %(outfile)s'''
-
-    P.run()
-
-
-@transform(salmonAnnotations,
-           suffix(".tsv.gz"),
-           ".load")
-def loadSalmonAnnotations(infile, outfile):
-    '''load the annotations for salmon'''
-
-    # will use ~15G RAM
-    P.load(infile, outfile, options='-i "gene_id" -i "transcript_id"')
-
-
-@active_if(PARAMS["salmon_active"])
-@follows(mkdir("salmon.dir"))
-@transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
-           regex(r".*/(.*).fastq.*.gz"),
-           r"salmon.dir/\1.log")
-def salmon(infile, outfile):
-    '''Per sample quantification using salmon'''
-
-    reads_one = infile
-    outname = outfile[:-len(".log")]
-
-    if os.path.isdir(reads_one):
-        reads_one = glob.glob(os.path.join(reads_one, fastq_pattern))
-
-    else:
-        reads_one = [reads_one]
-
-    salmon_index = PARAMS["salmon_index"]
-
-    if PAIRED:
-        reads_two = [x[:-len(".1.gz")] + ".2.gz" for x in reads_one]
-        fastq_input = "-1 " + " ".join(reads_one) +\
-                      " -2 " + " ".join(reads_two)
-
-    else:
-        fastq_input = "-r " + " ".join(reads_one)
-
-    salmon_libtype = SALMON_LIBTYPE
-    salmon_params = PARAMS["salmon_params"]
-    job_threads = PARAMS["salmon_threads"]
-
-    statement = '''salmon quant -i %(salmon_index)s
-                                -p %(job_threads)s
-                                %(salmon_params)s
-                                -l %(salmon_libtype)s
-                                %(fastq_input)s
-                                -o %(outname)s
-                    &> %(outfile)s;
-              '''
-
-    P.run()
-
-
-@follows(loadSalmonAnnotations)
-@active_if(PARAMS["salmon_active"])
-@merge(salmon, "salmon.dir/salmon.load")
-def loadSalmon(infiles, outfile):
-    '''load the salmon results'''
-
-    tables = [x.replace(".log", "/quant.sf") for x in infiles]
-
-    P.concatenateAndLoad(tables, outfile,
-                         regex_filename=".*/(.*)/quant.sf",
-                         cat="sample_id",
-                         options="-i Name",
-                         job_memory=PARAMS["sql_himem"])
-
-
-@active_if(PARAMS["salmon_active"])
-@files(loadSalmon,
-       "salmon.dir/salmon_gene_tpms.txt")
-def salmonGeneTPMs(infile, outfile):
-    '''Prepare a gene x sample table of salmon TPMs'''
-
-    table = P.toTable(infile)
-
-    con = sqlite3.connect(PARAMS["database_name"])
-    c = con.cursor()
-
-    sql = '''select sample_id, gene_id, sum(TPM) tpm
-             from %(table)s t
-             inner join transcript_info i
-             on t.Name=i.transcript_id
-             group by gene_id, sample_id
-          ''' % locals()
-
-    df = pd.read_sql(sql, con)
-    df = df.pivot("gene_id", "sample_id", "tpm")
-    df.to_csv(outfile, sep="\t", index=True, index_label="gene_id")
-
-
-@active_if(PARAMS["salmon_active"])
-@files(loadSalmon,
-       "salmon.dir/salmon_transcript_tpms.txt")
-def salmonTranscriptTPMs(infile, outfile):
-    '''Prepare a transcript x sample table of salmon TPMs'''
-
-    table = P.toTable(infile)
-
-    con = sqlite3.connect(PARAMS["database_name"])
-    c = con.cursor()
-
-    sql = '''select sample_id, Name transcript_id, TPM tpm
-             from %(table)s t
-          ''' % locals()
-
-    df = pd.read_sql(sql, con)
-    df = df.pivot("transcript_id", "sample_id", "tpm")
-    df.to_csv(outfile, sep="\t", index=True, index_label="transcript_id")
-
-
-@active_if(PARAMS["salmon_active"])
-@files(loadSalmon,
-       "salmon.dir/salmon_gene_counts.txt")
-def salmonGeneCounts(infile, outfile):
-    '''Prepare a gene x sample table of salmon counts'''
-
-    table = P.toTable(infile)
-
-    con = sqlite3.connect(PARAMS["database_name"])
-    c = con.cursor()
-
-    sql = '''select sample_id, gene_id, sum(NumReads) counts
-             from %(table)s t
-             inner join transcript_info i
-             on t.Name=i.transcript_id
-             group by gene_id, sample_id
-          ''' % locals()
-
-    df = pd.read_sql(sql, con)
-    df = df.pivot("gene_id", "sample_id", "counts")
-    df.to_csv(outfile, sep="\t", index=True, index_label="gene_id")
-
-
-@active_if(PARAMS["salmon_active"])
-@files(loadSalmon,
-       "salmon.dir/salmon_transcript_counts.txt")
-def salmonTranscriptCounts(infile, outfile):
-    '''Prepare a transcript x sample table of salmon counts'''
-
-    table = P.toTable(infile)
-
-    con = sqlite3.connect(PARAMS["database_name"])
-    c = con.cursor()
-
-    sql = '''select sample_id, Name transcript_id, NumReads counts
-             from %(table)s t
-          ''' % locals()
-
-    df = pd.read_sql(sql, con)
-    df = df.pivot("transcript_id", "sample_id", "counts")
-    df.to_csv(outfile, sep="\t", index=True, index_label="transcript_id")
-
-
-@active_if(PARAMS["salmon_active"])
-@transform([salmonGeneTPMs, salmonGeneCounts],
-           suffix(".txt"),
-           ".load")
-def loadSalmonGeneTables(infile, outfile):
-
-    P.load(infile, outfile, options='-i "gene_id"')
-
-
-@active_if(PARAMS["salmon_active"])
-@transform([salmonTranscriptTPMs, salmonTranscriptCounts],
-           suffix(".txt"),
-           ".load")
-def loadSalmonTranscriptTables(infile, outfile):
-
-    P.load(infile, outfile, options='-i "transcript_id"')
 
 
 @follows(loadCuffNormUQ, loadCopyNumber,

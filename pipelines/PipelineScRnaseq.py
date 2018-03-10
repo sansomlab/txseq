@@ -93,9 +93,7 @@ def estimateCopyNumber(infiles, outfile, params):
                    on e.gene_id=c.tracking_id
                 ''' % locals()
 
-    # spikedf = PU.fetch_DataFrame(statement, PARAMS["database"])
     spikedf = pd.read_sql(statement, con)
-    # rspikedf = pdcom.convert_to_r_dataframe(spikedf)
 
     # ## retrieve the data to normalise
     statement = ''' select tracking_id as gene_id, %(col_name)s as FPKM
@@ -103,7 +101,6 @@ def estimateCopyNumber(infiles, outfile, params):
                 ''' % locals()
 
     fpkms = pd.read_sql(statement, con)
-    # rfpkms = pdcom.convert_to_r_dataframe(fpkms)
 
     script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
 
