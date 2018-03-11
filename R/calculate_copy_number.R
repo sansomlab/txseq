@@ -1,4 +1,4 @@
-## A script to compute copy numbers based on
+## A script to estimate compute copy numbers based on:
 ## (1) A set of spike-ins for which the copy numbers are given
 ## (2) A table of length normalised expression values
 
@@ -15,13 +15,13 @@ option_list <- list(
                 help="the name of the column in the spikeinfo table containing the spike-in identifier"),
     make_option(c("--spikecopynumbercolumn"), default="seurat.out.dir",
                 help="the name of the column in the spikeinfo table contining the known copy numbers"),
-    make_option(c("--spikepattern"),default="ERCC",
-                help="A pattern that can be used to recognise the spike-in identifiers. All spike-in ids must contain the pattern"),
     make_option(c("--exprstable"), default="must_specify",
                 help="A tab-delimited table containing length normalised expression tables. One column per sample. One identifier column."),
     make_option(c("--exprsidcolumn"), default="none",
-                help="The name of the identifer column in the expression table")
-    )
+                help="The name of the identifer column in the expression table"),
+    make_option(c("--outfile"), default="none",
+                help="The name of the file to write the results to")
+)
 
 opt <- parse_args(OptionParser(option_list=option_list))
 
@@ -43,25 +43,23 @@ exprs[[opt$exprsidcolumn]] <- NULL
 
 non_spike_ids <- rownames(exprs)[!rownames(exprs) %in% rownames(spikes)]
 
-result <- data.frame()
-result[[opt$exprsidcolumn]] <- non_spike_ids
+results <- data.frame(row.names=non_spike_ids)
+results[[opt$exprsidcolumn]] <- non_spike_ids
 
 for(sample in colnames(exprs))
 {
 
-    goodSpikes <- intersect(rownames(exprs[exprs[[sample]]!=0,sample]),
+    goodSpikes <- intersect(rownames(exprs[exprs[[sample]]!=0,]),
                             rownames(spikes))
 
     spike_copies <- log10(spikes[goodSpikes,opt$spikecopynumbercolumn] + 1)
-    spike_exprs <- log10(exprs[goodSpikes, sample] + 1)
+    obs_exprs <- log10(exprs[goodSpikes, sample] + 1)
 
-    ## copies = log10(goodSpikes$copies_per_cell + 1)
-    ##exprs = log10(goodSpikes[[exprs_col]] + 1 )
+    ## get the fit
+    fit = lm(spike_copies ~ 0 + obs_exprs + I(obs_exprs^2), list(spike_copies,obs_exprs))
 
-    ##get fit
-    fit = lm(spike_copies ~ 0 + spike_exprs + I(spike_exprs^2), list(spike_copies,spike_exprs))
-
-    ## make diagnostic plot of fit.
+    ## make diagnostic plot showing the fit.
+    plotname = paste(gsub(".txt","",opt$outfile),sample,"pdf",sep=".")
     pdf(plotname)
 
     plot(log10(exprs[rownames(spikes), sample]+1),
@@ -70,30 +68,23 @@ for(sample in colnames(exprs))
          xlab="Spike in expression level log10(x+1)",
          ylab="Spike in copy number log10(x+1)")
 
-    plot_data = data.frame(exprs_col=sort(log10(exprs[rownames(spikes), sample]+1)))
-    lines(plot_data[[exprs_col]],predict(fit,plot_data),col="red")
+    plot_data = data.frame(obs_exprs=sort(log10(exprs[rownames(spikes), sample]+1)))
+
+    lines(plot_data$obs_exprs,predict(fit,plot_data),col="red")
 
     dev.off()
 
     ## calculate copies per cell from the raw (length-normalised) expression values**
-    exprs_values = log10(all_exprs[non_spike_ids, sample]+1)
+    exprs_values = log10(exprs[non_spike_ids, sample]+1)
 
-    transformed_copy_number = predict(fit,data.frame(exprs_values=exprs_values))
+    transformed_copy_number = predict(fit,data.frame(obs_exprs=exprs_values))
 
     copy_number = 10^transformed_copy_number - 1
 
-    ## raw_exprs = 10^exprs_values$exprs_col - 1
-
     results[[sample]] <- copy_number
-
-    ## normalised = data.frame(gene_id = exprs_values$gene_id,
-    ##                       copy_number = copy_number,
-    ##                       exprs_col = raw_exprs)
-
-    ## names(normalised)[names(normalised) == "exprs_col"] <- exprs_col
-
-    ## write.table(normalised, outfile, row.names=F,sep="\t",quote=F)
 
     }
 
-write.table(opt$outfile, results, header=T, sep="\t", row.names=FALSE)
+## save the results to a tab-delimited text-file
+write.table(results, opt$outfile, col.names=TRUE,
+            sep="\t", row.names=FALSE, quote=FALSE)
