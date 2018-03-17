@@ -34,6 +34,9 @@ Pipeline template
 Overview
 ========
 
+A pipeline designed to work with SMART-seq style single cell data
+and bulk RNA-seq data. Single and paired end-data is supported.
+
 This pipeline performs the follow tasks:
 
 (1) [optional] Mapping of reads using hisat
@@ -44,13 +47,18 @@ This pipeline performs the follow tasks:
       - See pipeline.ini and below for filename syntax guidance.
 
 (2) Quantitation of gene expression
-      - Ensembl protein coding (+/- spike in sequences)
+      - Ensembl geneset or supplied GTF (+/- spike in sequences)
       - Salmon is used to calculate TPM values
-      - Cufflinks (cuffquant + cuffnorm) is run for copy number estimation
+      - Cufflinks (cuffquant + cuffnorm) can be optionally run
       - featureCounts (from the subread package) is run for counting reads
 
 (3) Calculation of post-mapping QC statistics
-
+      - Picard CollectRnaSeqMetrics, AlignmentSummaryMetrics,
+               EstimateLibraryComplexity, InsertSizeMetrics
+      - Fraction spliced reads
+      - Ratio spike-ins / genomic
+      - Three prime bias
+      - Numvers of genes detected
 
 Usage
 =====
@@ -143,12 +151,13 @@ software to be in the path:
 
 Requirements (TBC):
 
-* cufflinks
-* picard
-* hisat
+* Cufflinks
+* Picard
+* Hisat2
 * subread
 * R
-* etc!
+* Salmon
+* Kent tools
 
 Pipeline output
 ===============
@@ -1552,6 +1561,7 @@ def spikeVsGenome(infile, outfile):
                            {total+=1};
                            $3~/%(spikein_pattern)s*/{spikein+=1};
                            END{frac=spikein/total;
+                               genome=total-spikein;
                                print genome,spikein,frac};'
                     >> %(outfile)s
                 '''
