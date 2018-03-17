@@ -44,7 +44,7 @@ This pipeline performs the follow tasks:
       - See pipeline.ini and below for filename syntax guidance.
 
 (2) Quantitation of gene expression
-      - Ensembl protein coding (+/- ERCC spikes)
+      - Ensembl protein coding (+/- spike in sequences)
       - Salmon is used to calculate TPM values
       - Cufflinks (cuffquant + cuffnorm) is run for copy number estimation
       - featureCounts (from the subread package) is run for counting reads
@@ -115,17 +115,17 @@ the mapper should be supplied as an extrat name field e.g.
   mTEChi_wildtype_plate1_A_1_gsnap.bam
   mTEChi_wildtype_plate1_A_1_gsnap.bam.bai
 
-* ERCC information
+* Spike-in information
 
 If spike-ins are used the location of a table containing the per cell
-ERCC spike in copy numbers should be provided in the pipeline.ini file.
+Spike in copy numbers should be provided in a file specified in pipeline.ini
 
 The expected structure (tab-delimited) is:
 
-gene_id|genebank_id|5prime_assay |3prime_assay |sequence|length|copies_per_cell
-ERCC-..|EF011072   |Ac03459943_a1|Ac03460039_a1|CGAT... |1059  |20324.7225
+gene_id|copies_per_cell
+ERCC-..|20324.7225
 
-Note that only the columns "gene_id" and "copies_per_cell" are required.
+Note that the columns "gene_id" and "copies_per_cell" are required.
 
 
 Requirements
@@ -194,10 +194,9 @@ if len(sys.argv) > 1:
 # -------------------------- < parse parameters > --------------------------- #
 
 # load options from the config file
-PARAMS = P.getParameters(
-    ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
-     "../pipeline.ini",
-     "pipeline.ini"])
+PARAMS = P.getParameters(["%s/pipeline.ini" % os.path.splitext(__file__)[0],
+                          "../pipeline.ini",
+                          "pipeline.ini"])
 
 # Establish the location of module scripts for P.submit() functions
 if PARAMS["code_dir"] == "":
@@ -324,7 +323,196 @@ if PAIRED:
 else:
     SALMON_LIBTYPE = SALMON_STRAND
 
-ERCC = PARAMS["ercc"]
+SPIKES = PARAMS["spikein_present"]
+
+
+# ########################################################################### #
+# ################ Check annotation versions and genomes  ################### #
+# ########################################################################### #
+
+# Check that the genome source is set to "ucsc" or "ensembl"
+GENOME_SOURCE = PARAMS["annotations_genome_source"].lower()
+
+if not (GENOME_SOURCE == "ucsc" or GENOME_SOURCE == "ensembl"):
+    raise ValueError('annotations_genome_source must be either'
+                     ' "ucsc" or "ensembl" but "%(GENOME_SOURCE)s"'
+                     ' was given' % locals())
+
+# Check that given annotations and indices contain the expected
+# Ensembl version number
+ENSEMBL_VERSION = str(PARAMS["ensembl_version"])
+
+if ENSEMBL_VERSION not in PARAMS["ensembl_geneset"]:
+    raise ValueError("annotations geneset does not contain the"
+                     " given ensembl version number")
+
+if (PARAMS["annotations_geneset"] == "ensembl" and
+        ENSEMBL_VERSION not in PARAMS["salmon_index"]):
+    raise ValueError("salmon index does not contain the"
+                     " given ensembl version number")
+
+if (PARAMS["annotations_geneset"] == "ensembl" and
+        ENSEMBL_VERSION not in PARAMS["hisat_index"]):
+    raise ValueError("hisat index does not contain the"
+                     " given ensembl version number")
+
+# Check that the given genome indices contain the expected
+# genome name
+
+GENOME_NAME = PARAMS["annotations_genome"]
+
+if GENOME_NAME not in PARAMS["salmon_index"]:
+    raise ValueError("salmon index does not contain the"
+                     " given genome name")
+
+if GENOME_NAME not in PARAMS["hisat_index"]:
+    raise ValueError("hisat_index does not contain the"
+                     " given genome name")
+
+# Figure out which geneset to use for quantitation
+
+if PARAMS["annotations_geneset"].lower() == "ensembl":
+    QUANTITATION_GTF = PARAMS["ensembl_geneset"]
+else:
+    QUANTITATION_GTF = PARAMS["annotations_geneset"]
+
+# Ensembl and UCSC have different contig naming conventions
+# (UCSC prefixes contig names with "chr")
+# Sanity check the contig patterns
+
+
+@mkdir("preflight.checks.dir")
+@files(os.path.join(PARAMS["annotations_genome_dir"],
+                    PARAMS["annotations_genome"] + ".fasta"),
+       "preflight.checks.dir/genome.contigs.txt")
+def getGenomeContigs(infile, outfile):
+
+    statement = '''grep \> %(infile)s
+                   | sed 's/>//g'
+                   | sort -u
+                   > %(outfile)s
+                '''
+    P.run()
+
+
+@mkdir("preflight.checks.dir")
+@files(None,
+       "preflight.checks.dir/hisat2.contigs.txt")
+def getHisat2Contigs(infile, outfile):
+
+    statement = '''hisat2-inspect -s %(hisat_index)s
+                   | grep Sequence
+                   | cut -f2
+                   | sort -u
+                   > %(outfile)s
+                '''
+
+    P.run()
+
+
+@mkdir("preflight.checks.dir")
+@files(QUANTITATION_GTF,
+       "preflight.checks.dir/quantification.geneset.contigs.txt")
+def getQuantitationGenesetContigs(infile, outfile):
+
+    statement = '''zcat %(infile)s
+                   | grep -v ^#
+                   | cut -f1
+                   | sort -u
+                   > %(outfile)s
+                '''
+
+    P.run()
+
+
+@mkdir("preflight.checks.dir")
+@files(PARAMS["ensembl_geneset"],
+       "preflight.checks.dir/ensembl.geneset.contigs.txt")
+def getEnsemblGenesetContigs(infile, outfile):
+
+    statement = '''zcat %(infile)s
+                   | grep -v ^#
+                   | cut -f1
+                   | sort -u
+                   > %(outfile)s
+                '''
+
+    P.run()
+
+
+@merge([getGenomeContigs, getHisat2Contigs,
+        getQuantitationGenesetContigs,
+        getEnsemblGenesetContigs],
+       "preflight.checks.dir/contig.report.txt")
+def checkContigs(infiles, outfile):
+    '''Check that all the annotations and indices
+       share a common set of contigs'''
+
+    contig_sets = {}
+    contig_ns = []
+
+    report = open(outfile, "w")
+
+    for infile in infiles:
+
+        set_name = os.path.basename(infile).split(".")[0]
+        contig_sets[set_name] = []
+
+        with open(infile, "r") as contig_file:
+
+            for line in contig_file:
+
+                contig = line.strip()
+
+                if contig.startswith("chr"):
+
+                    if GENOME_SOURCE == "ucsc":
+                        pass
+                    else:
+                        raise ValueError("ensembl contigs are not expected"
+                                         " to contain chr pattern"
+                                         " in %(infile)s" % locals())
+
+                else:
+                    if GENOME_SOURCE == "ensembl":
+                        pass
+                    else:
+                        raise ValueError("ucsc chr contig pattern not found"
+                                         " in %(infile)s" % locals())
+
+                contig_sets[set_name].append(contig)
+
+        n_contigs = len(contig_sets[set_name])
+        contig_ns.append(n_contigs)
+
+        if n_contigs == 0:
+            raise ValueError("No contigs found in %(infile)s" % locals())
+
+        report.write("#%(set_name)s: found %(n_contigs)i contigs\n" % locals())
+
+    begin = True
+
+    for contig_set, contigs in contig_sets.items():
+
+        if begin:
+            common = set(contigs)
+            begin = False
+
+        else:
+            common = common.intersection(set(contigs))
+
+    n_common = len(common)
+    if n_common != np.max([np.min(contig_ns), 1]):
+
+        raise ValueError("No common contigs found")
+
+    report.write("Found %(n_common)i common contigs:\n" % locals())
+
+    for contig in common:
+        report.write(contig + "\n")
+
+    report.close()
+
 
 # ---------------------- < specific pipeline tasks > ------------------------ #
 
@@ -348,7 +536,7 @@ HISAT_MEMORY = str(int(PARAMS["hisat_total_mb_memory"]) //
                    int(HISAT_THREADS)) + "M"
 
 
-@follows(mkdir("hisat.dir/first.pass.dir"))
+@follows(mkdir("hisat.dir/first.pass.dir"), checkContigs)
 @transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
            regex(r".*/(.*).fastq.*.gz"),
            r"hisat.dir/first.pass.dir/\1.novel.splice.sites.txt.gz")
@@ -484,15 +672,15 @@ else:
 
 
 # ########################################################################### #
-# ################ (2) Quantification of gene expression #################### #
+# ################ (2) Quantitation of gene expression #################### #
 # ########################################################################### #
 
 # ------------------------- Geneset Definition ------------------------------ #
 
-@follows(mkdir("annotations.dir"))
-@files(PARAMS["annotations_geneset"],
-       "annotations.dir/geneset.gtf.gz")
-def prepareGenesetGTF(infile, outfile):
+@follows(mkdir("annotations.dir"), checkContigs)
+@files(QUANTITATION_GTF,
+       "annotations.dir/quantitation.geneset.gtf.gz")
+def prepareQuantitationGenesetGTF(infile, outfile):
     '''Preparation of gtf for quantitation:
        Spike-in GTF entries are optionally appended
        to the reference annotation'''
@@ -503,48 +691,69 @@ def prepareGenesetGTF(infile, outfile):
                      > %(outname)s;
                      checkpoint;
                   '''
-    if ERCC:
-        ercc_geneset = PARAMS["annotations_ercc92_geneset"]
-        ercc_stat = '''cat %(ercc_geneset)s >> %(outname)s;
-                      checkpoint;
-                   '''
+    if SPIKES:
+        spikein_geneset = PARAMS["spikein_geneset"]
+        spikein_stat = '''cat %(spikein_geneset)s >> %(outname)s;
+                          checkpoint;
+                        '''
     else:
-        ercc_stat = ''
+        spikein_stat = ''
 
-    statement = geneset_stat + ercc_stat + "gzip %(outname)s"
+    statement = geneset_stat + spikein_stat + "gzip %(outname)s"
 
     P.run()
 
 
 @follows(mkdir("annotations.dir"))
-@files(PARAMS["annotations_geneset"],
-       "annotations.dir/transcript_info.tsv.gz")
-def prepareAnnotations(infile, outfile):
+@files(PARAMS["ensembl_geneset"],
+       "annotations.dir/ensembl.geneset.flat.gz")
+def prepareEnsemblGenesetFlat(infile, outfile):
+    '''Prepare a flat version of the geneset
+       for Picard's CollectRnaSeqMetrics'''
+
+    statement = '''gtfToGenePred
+                    -genePredExt
+                    -geneNameAsName2
+                    -ignoreGroupsWithoutExons
+                    %(ensembl_geneset)s
+                    /dev/stdout |
+                    awk 'BEGIN { OFS="\\t"}
+                         {print $12, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10}'
+                    | gzip -c
+                    > %(outfile)s
+                 '''
+
+    P.run()
+
+
+@follows(mkdir("annotations.dir"))
+@files(None,
+       "annotations.dir/transcript_info.txt.gz")
+def fetchEnsemblAnnotations(infile, outfile):
     '''Prepare an annotation table containing information for all
     of the Ensembl transcripts'''
 
     job_memory = "10G"
 
-    statement = '''zcat %(infile)s
-                   | cgat gtf2tsv -f
-                   | grep -v ^#
-                   | gzip -c
-                   > %(outfile)s'''
-
+    statement = '''Rscript %(scseq_dir)s/R/fetch_ensembl_annotations.R
+                   --host=%(ensembl_host)s
+                   --dataset=%(ensembl_dataset)s
+                   --outfile=%(outfile)s
+                '''
     P.run()
 
 
-@transform(prepareAnnotations,
-           suffix(".tsv.gz"),
+@transform(fetchEnsemblAnnotations,
+           suffix(".txt.gz"),
            ".load")
-def loadAnnotations(infile, outfile):
+def loadEnsemblAnnotations(infile, outfile):
     '''load the annotations for salmon'''
 
     # will use ~15G RAM
     P.load(infile, outfile, options='-i "gene_id" -i "transcript_id"')
 
 
-@transform(prepareAnnotations,
+@transform(fetchEnsemblAnnotations,
            regex("(.*)/.*"),
            r"\1/tx2gene.txt")
 def tx2gene(infile, outfile):
@@ -567,29 +776,20 @@ def tx2gene(infile, outfile):
     #  checkpoint;
     #  '''
 
-    if ERCC:
-        ercc_geneset = PARAMS["annotations_ercc92_geneset"]
-        ercc_stat = '''cat %(ercc_geneset)s
-                       | awk '{print($1"\\t"$1)}'
-                       >> %(outfile)s;
-                    '''
-        statement = ercc_stat
+    if SPIKES:
+        spikein_tx2db = PARAMS["spikein_tx2gene"]
+        spikein_stat = '''cat %(spikein_tx2gene)s
+                          >> %(outfile)s;
+                       '''
+        statement = spikein_stat
 
         P.run()
 
 
-@active_if(ERCC)
-@follows(mkdir("annotations.dir"))
-@files(PARAMS["annotations_ercc92_info"],
-       "annotations.dir/ercc.load")
-def loadERCC92Info(infile, outfile):
-    '''load the spike-in info including copy number'''
-
-    P.load(infile, outfile, options='-i "gene_id"')
-
-
-@follows(prepareGenesetGTF, loadAnnotations,
-         loadERCC92Info, tx2gene)
+@follows(prepareQuantitationGenesetGTF,
+         prepareEnsemblGenesetFlat,
+         loadEnsemblAnnotations,
+         tx2gene)
 def annotations():
     pass
 
@@ -599,7 +799,7 @@ def annotations():
 @follows(mkdir("featureCounts.dir"))
 @transform(collectBAMs,
            regex(r".*/(.*).bam"),
-           add_inputs(prepareGenesetGTF),
+           add_inputs(prepareQuantitationGenesetGTF),
            r"featureCounts.dir/\1.counts.gz")
 def featureCounts(infiles, outfile):
     '''Run featureCounts. Note that we first need
@@ -695,7 +895,7 @@ def loadFeaturecountsTables(infile, outfile):
            add_inputs(tx2gene),
            r"salmon.dir/\1.log")
 def salmon(infiles, outfile):
-    '''Per sample quantification using salmon'''
+    '''Per sample quantitation using salmon'''
 
     reads_one, tx2gene = infiles
     outname = outfile[:-len(".log")]
@@ -813,7 +1013,7 @@ def loadSalmonTPMs(infile, outfile):
 
 # -------------------- FPKM (Cufflinks) quantitation------------------------- #
 
-# Optional cufflinks based-quantification, e.g.
+# Optional cufflinks based-quantitation, e.g.
 #
 # "make loadCuffNormClassic"
 # "make loadCuffNormUQ"
@@ -821,10 +1021,10 @@ def loadSalmonTPMs(infile, outfile):
 @follows(mkdir("cuffquant.dir"))
 @transform(collectBAMs,
            regex(r".*/(.*).bam"),
-           add_inputs(prepareGenesetGTF),
+           add_inputs(prepareQuantitationGenesetGTF),
            r"cuffquant.dir/\1.log")
 def cuffQuant(infiles, outfile):
-    '''Per sample quantification using cuffquant'''
+    '''Per sample quantitation using cuffquant'''
 
     bam_file, geneset = infiles
 
@@ -864,7 +1064,7 @@ def cuffQuant(infiles, outfile):
 
 
 @follows(mkdir("cuffnorm.classic.dir"), cuffQuant)
-@merge([prepareGenesetGTF, cuffQuant],
+@merge([prepareQuantitationGenesetGTF, cuffQuant],
        "cuffnorm.classic.dir/cuffnorm_classic.log")
 def cuffNormClassic(infiles, outfile):
     '''Calculate classic FPKMs using cuffNorm
@@ -903,7 +1103,7 @@ def loadCuffNormClassic(infile, outfile):
 
 
 @follows(mkdir("cuffnorm.uq.dir"), cuffQuant)
-@merge([prepareGenesetGTF, cuffQuant],
+@merge([prepareQuantitationGenesetGTF, cuffQuant],
        "cuffnorm.uq.dir/cuffnorm_uq.log")
 def cuffNormUQ(infiles, outfile):
     '''Calculate upper quartile (UQ) normalised FPKMs using cuffNorm
@@ -976,19 +1176,24 @@ def loadCuffNormUQ(infile, outfile):
 # ---------------------- Copynumber estimation ------------------------------ #
 
 # Copynumber estimation based on spike-in sequences and Salmon TPMs.
+if PARAMS["spikein_estimate_copy_numbers"] is True:
+    run_copy_number_estimation = True
+else:
+    run_copy_number_estimation = False
 
-@active_if(ERCC)
+
+@active_if(run_copy_number_estimation)
 @follows(mkdir("copy.number.dir"), loadSalmonTPMs)
 @files("salmon.dir/salmon.genes.tpms.txt",
-       r"copy.number.dir/copy_numbers.txt")
+       "copy.number.dir/copy_numbers.txt")
 def estimateCopyNumber(infile, outfile):
     '''Estimate copy numbers based on standard
        curves constructed from the spike-ins'''
 
     statement = '''Rscript %(scseq_dir)s/R/calculate_copy_number.R
-                   --spikeintable=%(annotations_ercc92_info)s
-                   --spikeidcolumn=%(annotations_ercc92_idcol)s
-                   --spikecopynumbercolumn=%(annotations_ercc92_copynocol)s
+                   --spikeintable=%(spikein_copy_numbers)s
+                   --spikeidcolumn=gene_id
+                   --spikecopynumbercolumn=copies_per_cell
                    --exprstable=%(infile)s
                    --exprsidcolumn=gene_id
                    --outfile=%(outfile)s
@@ -996,7 +1201,7 @@ def estimateCopyNumber(infile, outfile):
     P.run()
 
 
-@active_if(ERCC)
+@active_if(run_copy_number_estimation)
 @transform(estimateCopyNumber,
            suffix(".txt"),
            ".load")
@@ -1031,13 +1236,15 @@ PICARD_MEMORY = str(int(PARAMS["picard_total_mb_memory"]) //
 @follows(mkdir("qc.dir/rnaseq.metrics.dir/"))
 @transform(collectBAMs,
            regex(r".*/(.*).bam"),
+           add_inputs(prepareEnsemblGenesetFlat),
            r"qc.dir/rnaseq.metrics.dir/\1.rnaseq.metrics")
-def collectRnaSeqMetrics(infile, outfile):
+def collectRnaSeqMetrics(infiles, outfile):
     '''Run Picard CollectRnaSeqMetrics on the bam files'''
+
+    bam_file, geneset_flat = infiles
 
     picard_options = PARAMS["picard_collectrnaseqmetrics_options"]
 
-    geneset_flat = PARAMS["picard_geneset_flat"]
     validation_stringency = PARAMS["picard_validation_stringency"]
 
     job_threads = PICARD_THREADS
@@ -1051,7 +1258,7 @@ def collectRnaSeqMetrics(infile, outfile):
     statement = '''picard_out=`mktemp -p %(local_tmpdir)s`;
                    checkpoint;
                    CollectRnaSeqMetrics
-                   I=%(infile)s
+                   I=%(bam_file)s
                    REF_FLAT=%(geneset_flat)s
                    O=$picard_out
                    CHART=%(chart_out)s
@@ -1332,6 +1539,8 @@ def spikeVsGenome(infile, outfile):
        Compute the ratio of reads mapping to spike-ins vs genome.
        Only uniquely mapping reads are considered'''
 
+    # TODO: do this from featureCounts instead
+
     header = "\\t".join(["nreads_uniq_map_genome", "nreads_uniq_map_spike",
                         "fraction_spike"])
 
@@ -1339,11 +1548,11 @@ def spikeVsGenome(infile, outfile):
                     checkpoint;
                     samtools view %(infile)s
                     | grep NH:i:1
-                    | awk 'BEGIN{OFS="\\t";ercc=0;genome=0};
-                           $3~/chr*/{genome+=1};
-                           $3~/ERCC*/{ercc+=1};
-                           END{frac=ercc/(ercc+genome);
-                               print genome,ercc,frac};'
+                    | awk 'BEGIN{OFS="\\t";spikein=0;genome=0};
+                           {total+=1};
+                           $3~/%(spikein_pattern)s*/{spikein+=1};
+                           END{frac=spikein/total;
+                               print genome,spikein,frac};'
                     >> %(outfile)s
                 '''
     P.run()
@@ -1363,7 +1572,7 @@ def loadSpikeVsGenome(infiles, outfile):
 
 # ------------------------- No. genes detected ------------------------------ #
 
-@follows(mkdir("qc.dir/"), loadSalmonTPMs, loadAnnotations)
+@follows(mkdir("qc.dir/"), loadSalmonTPMs, loadEnsemblAnnotations)
 @files("salmon.dir/salmon.genes.tpms.load",
        "qc.dir/number.genes.detected.salmon")
 def numberGenesDetectedSalmon(infile, outfile):
