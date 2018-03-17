@@ -346,13 +346,13 @@ if ENSEMBL_VERSION not in PARAMS["ensembl_geneset"]:
     raise ValueError("annotations geneset does not contain the"
                      " given ensembl version number")
 
-if (PARAMS["annotations_geneset"]=="ensembl" and
-    ENSEMBL_VERSION not in PARAMS["salmon_index"]):
+if (PARAMS["annotations_geneset"] == "ensembl" and
+        ENSEMBL_VERSION not in PARAMS["salmon_index"]):
     raise ValueError("salmon index does not contain the"
                      " given ensembl version number")
 
-if (PARAMS["annotations_geneset"]=="ensembl" and
-    ENSEMBL_VERSION not in PARAMS["hisat_index"]):
+if (PARAMS["annotations_geneset"] == "ensembl" and
+        ENSEMBL_VERSION not in PARAMS["hisat_index"]):
     raise ValueError("hisat index does not contain the"
                      " given ensembl version number")
 
@@ -379,6 +379,7 @@ else:
 # Ensembl and UCSC have different contig naming conventions
 # (UCSC prefixes contig names with "chr")
 # Sanity check the contig patterns
+
 
 @mkdir("preflight.checks.dir")
 @files(os.path.join(PARAMS["annotations_genome_dir"],
@@ -423,6 +424,7 @@ def getQuantitationGenesetContigs(infile, outfile):
 
     P.run()
 
+
 @mkdir("preflight.checks.dir")
 @files(PARAMS["ensembl_geneset"],
        "preflight.checks.dir/ensembl.geneset.contigs.txt")
@@ -436,7 +438,6 @@ def getEnsemblGenesetContigs(infile, outfile):
                 '''
 
     P.run()
-
 
 
 @merge([getGenomeContigs, getHisat2Contigs,
@@ -457,7 +458,7 @@ def checkContigs(infiles, outfile):
         set_name = os.path.basename(infile).split(".")[0]
         contig_sets[set_name] = []
 
-        with open(infile,"r") as contig_file:
+        with open(infile, "r") as contig_file:
 
             for line in contig_file:
 
@@ -465,16 +466,19 @@ def checkContigs(infiles, outfile):
 
                 if contig.startswith("chr"):
 
-                    if GENOME_SOURCE=="ucsc":
+                    if GENOME_SOURCE == "ucsc":
                         pass
                     else:
-                        raise ValueError ("ucsc contig pattern not found in %(infile)s" % locals())
+                        raise ValueError("ucsc contig pattern not"
+                                         " found in %(infile)s" % locals())
 
                 else:
-                    if GENOME_SOURCE=="ensembl":
+                    if GENOME_SOURCE == "ensembl":
                         pass
                     else:
-                        raise ValueError ("ensembl contigs should not contain chr pattern in %(infile)s" % locals())
+                        raise ValueError("ensembl contigs should not"
+                                         "contain  chr pattern"
+                                         " in %(infile)s" % locals())
 
                 contig_sets[set_name].append(contig)
 
@@ -508,7 +512,6 @@ def checkContigs(infiles, outfile):
         report.write(contig + "\n")
 
     report.close()
-
 
 
 # ---------------------- < specific pipeline tasks > ------------------------ #
@@ -705,21 +708,22 @@ def prepareQuantitationGenesetGTF(infile, outfile):
 @files(PARAMS["ensembl_geneset"],
        "annotations.dir/ensembl.geneset.flat.gz")
 def prepareEnsemblGenesetFlat(infile, outfile):
-     '''Prepare a flat version of the geneset
-        for Picard's CollectRnaSeqMetrics'''
+    '''Prepare a flat version of the geneset
+       for Picard's CollectRnaSeqMetrics'''
 
-     statement = '''gtfToGenePred
+    statement = '''gtfToGenePred
                     -genePredExt
                     -geneNameAsName2
                     -ignoreGroupsWithoutExons
                     %(ensembl_geneset)s
                     /dev/stdout |
-                    awk 'BEGIN { OFS="\\t"} {print $12, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10}'
+                    awk 'BEGIN { OFS="\\t"}
+                         {print $12, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10}'
                     | gzip -c
                     > %(outfile)s
                  '''
 
-     P.run()
+    P.run()
 
 
 @follows(mkdir("annotations.dir"))
@@ -1172,8 +1176,13 @@ def loadCuffNormUQ(infile, outfile):
 # ---------------------- Copynumber estimation ------------------------------ #
 
 # Copynumber estimation based on spike-in sequences and Salmon TPMs.
+if PARAMS["spikein_estimate_copy_numbers"] is True:
+    run_copy_number_estimation = True
+else:
+    run_copy_number_estimation = False
 
-@active_if(PARAMS["spikein_estimate_copy_numbers"]==True)
+
+@active_if(run_copy_number_estimation)
 @follows(mkdir("copy.number.dir"), loadSalmonTPMs)
 @files("salmon.dir/salmon.genes.tpms.txt",
        "copy.number.dir/copy_numbers.txt")
@@ -1192,7 +1201,7 @@ def estimateCopyNumber(infile, outfile):
     P.run()
 
 
-@active_if(PARAMS["spikein_estimate_copy_numbers"]==True)
+@active_if(run_copy_number_estimation)
 @transform(estimateCopyNumber,
            suffix(".txt"),
            ".load")
