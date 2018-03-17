@@ -469,15 +469,15 @@ def checkContigs(infiles, outfile):
                     if GENOME_SOURCE == "ucsc":
                         pass
                     else:
-                        raise ValueError("ucsc contig pattern not"
-                                         " found in %(infile)s" % locals())
+                        raise ValueError("ensembl contigs are not expected"
+                                         " to contain chr pattern"
+                                         " in %(infile)s" % locals())
 
                 else:
                     if GENOME_SOURCE == "ensembl":
                         pass
                     else:
-                        raise ValueError("ensembl contigs should not"
-                                         "contain  chr pattern"
+                        raise ValueError("ucsc chr contig pattern not found"
                                          " in %(infile)s" % locals())
 
                 contig_sets[set_name].append(contig)
