@@ -1012,7 +1012,8 @@ def loadSalmonTPMs(infile, outfile):
 
     opts = "-i " + id_name
 
-    P.load(infile, outfile, options=opts)
+    P.load(infile, outfile, options=opts,
+           job_memory=PARAMS["sql_himem"])
 
 
 # For summarisation of Salmon counts, downstream use of
