@@ -25,7 +25,7 @@ option_list <- list(
     	c("--gtf"),
     	help="Path to GTF file to extract transcripts information from."),
     make_option(
-    	c("--fields"), default = ""
+    	c("--fields"), default = "",
     	help="Comma-separated list of fields to extract from the GTF metadata."),
     make_option(
     	c("--outfile"),

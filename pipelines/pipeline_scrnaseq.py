@@ -735,28 +735,13 @@ def prepareEnsemblGenesetFlat(infile, outfile):
     P.run()
 
 
-# @follows(mkdir("annotations.dir"))
-# @files(None,
-#        "annotations.dir/transcript_info.txt.gz")
-# def fetchEnsemblAnnotations(infile, outfile):
-#     '''Prepare an annotation table containing information for all
-#     of the Ensembl transcripts'''
-
-#     job_memory = "10G"
-
-#     statement = '''Rscript %(scseq_dir)s/R/fetch_ensembl_annotations.R
-#                    --host=%(ensembl_host)s
-#                    --dataset=%(ensembl_dataset)s
-#                    --outfile=%(outfile)s
-#                 '''
-#     P.run()
-
 @follows(mkdir("annotations.dir"))
-@transform(QUANTITATION_GTF,
-           suffix(".gtf.gz"),
-           ".transcripts.txt.gz")
-def tabulateTranscriptFromGTF(infile, outfile):
+@follows(prepareQuantitationGenesetGTF)
+@files("annotations.dir/quantitation.geneset.gtf.gz",
+       "annotations.dir/transcript_info.txt.gz")
+def tabulateTranscriptInfoFromGTF(infile, outfile):
     '''
+    Tabulate selected transcript-level metadata from a GTF.
     '''
     job_memory = "10G"
 
@@ -775,7 +760,7 @@ def tabulateTranscriptFromGTF(infile, outfile):
     P.run()
     
 
-@transform(tabulateTranscriptFromGTF,
+@transform(tabulateTranscriptInfoFromGTF,
            suffix(".txt.gz"),
            ".load")
 def loadEnsemblAnnotations(infile, outfile):
@@ -785,7 +770,7 @@ def loadEnsemblAnnotations(infile, outfile):
     P.load(infile, outfile, options='-i "gene_id" -i "transcript_id"')
 
 
-@transform(tabulateTranscriptFromGTF,
+@transform(tabulateTranscriptInfoFromGTF,
            regex("(.*)/.*"),
            r"\1/tx2gene.txt")
 def tx2gene(infile, outfile):
