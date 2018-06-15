@@ -269,7 +269,7 @@ if any([x in NAME_FIELD_TITLES for x in ("sample_id")]):
 
 # Sanity check file names
 for sample_id in SAMPLE_IDS:
-    if len(sample_id.split(b'_')) != len(NAME_FIELD_TITLES):
+    if len(sample_id.split("_")) != len(NAME_FIELD_TITLES):
         raise ValueError("%(sample_id)s does not have the expected"
                          " number of name fields (%(NAME_FIELD_TITLES)s)."
                          " Note that name fields must be separated with"
@@ -277,7 +277,7 @@ for sample_id in SAMPLE_IDS:
 
 # Prepare sample table
 SAMPLES = pd.DataFrame([dict(list(zip(["sample_id"] + NAME_FIELD_TITLES,
-                                      [SAMPLE_ID] + SAMPLE_ID.split(b'_'))))
+                                      [SAMPLE_ID] + SAMPLE_ID.split("_"))))
                         for SAMPLE_ID in SAMPLE_IDS])
 
 
