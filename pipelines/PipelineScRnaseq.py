@@ -57,4 +57,4 @@ def runCuffNorm(geneset, cxb_files, labels,
                      checkpoint;
                      rm $gtf;
                 '''
-    P.run()
+    P.run(statement)
