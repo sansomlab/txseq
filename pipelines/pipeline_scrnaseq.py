@@ -391,19 +391,25 @@ else:
                     PARAMS["annotations_genome"] + ".fasta"),
        "preflight.checks.dir/genome.contigs.txt")
 def getGenomeContigs(infile, outfile):
+    '''
+    Extract contig names from genome FASTA file.
+    '''
 
     statement = '''grep \> %(infile)s
                    | sed 's/>//g'
                    | sort -u
                    > %(outfile)s
                 '''
-    P.run()
+    P.run(statement)
 
 
 @mkdir("preflight.checks.dir")
 @files(None,
        "preflight.checks.dir/hisat2.contigs.txt")
 def getHisat2Contigs(infile, outfile):
+    '''
+    Extract contig names from HISAT2 index file.
+    '''
 
     statement = '''hisat2-inspect -s %(hisat_index)s
                    | grep Sequence
@@ -412,13 +418,16 @@ def getHisat2Contigs(infile, outfile):
                    > %(outfile)s
                 '''
 
-    P.run()
+    P.run(statement)
 
 
 @mkdir("preflight.checks.dir")
 @files(QUANTITATION_GTF,
        "preflight.checks.dir/quantification.geneset.contigs.txt")
 def getQuantitationGenesetContigs(infile, outfile):
+    '''
+    Extract contig names the GTF file used for quantitation.
+    '''
 
     statement = '''zcat %(infile)s
                    | grep -v ^#
@@ -427,13 +436,16 @@ def getQuantitationGenesetContigs(infile, outfile):
                    > %(outfile)s
                 '''
 
-    P.run()
+    P.run(statement)
 
 
 @mkdir("preflight.checks.dir")
 @files(PARAMS["ensembl_geneset"],
        "preflight.checks.dir/ensembl.geneset.contigs.txt")
 def getEnsemblGenesetContigs(infile, outfile):
+    '''
+    Extract contig names from the ENSEMBL GTF file of gene annotation.
+    '''
 
     statement = '''zcat %(infile)s
                    | grep -v ^#
@@ -442,7 +454,7 @@ def getEnsemblGenesetContigs(infile, outfile):
                    > %(outfile)s
                 '''
 
-    P.run()
+    P.run(statement)
 
 
 @merge([getGenomeContigs, getHisat2Contigs,
@@ -450,8 +462,10 @@ def getEnsemblGenesetContigs(infile, outfile):
         getEnsemblGenesetContigs],
        "preflight.checks.dir/contig.report.txt")
 def checkContigs(infiles, outfile):
-    '''Check that all the annotations and indices
-       share a common set of contigs'''
+    '''
+    Check that all the annotations and indices
+    share a common set of contigs.
+    '''
 
     contig_sets = {}
     contig_ns = []
@@ -546,7 +560,9 @@ HISAT_MEMORY = str(int(PARAMS["hisat_total_mb_memory"]) //
            regex(r".*/(.*).fastq.*.gz"),
            r"hisat.dir/first.pass.dir/\1.novel.splice.sites.txt.gz")
 def hisatFirstPass(infile, outfile):
-    '''Run a first hisat pass to identify novel splice sites'''
+    '''
+    Run a first hisat pass to identify novel splice sites.
+    '''
 
     reads_one = infile
 
@@ -587,13 +603,15 @@ def hisatFirstPass(infile, outfile):
                    gzip %(out_name)s;
                  '''
 
-    P.run()
+    P.run(statement)
 
 
 @follows(mkdir("annotations.dir"))
 @merge(hisatFirstPass, "annotations.dir/novel.splice.sites.hisat.txt")
 def novelHisatSpliceSites(infiles, outfile):
-    '''Collect the novel splice sites into a single file'''
+    '''
+    Collect the novel splice sites into a single file.
+    '''
 
     junction_files = " ".join(infiles)
 
@@ -602,7 +620,7 @@ def novelHisatSpliceSites(infiles, outfile):
                    > %(outfile)s
                 '''
 
-    P.run()
+    P.run(statement)
 
 
 @transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
@@ -610,7 +628,9 @@ def novelHisatSpliceSites(infiles, outfile):
            add_inputs(novelHisatSpliceSites),
            r"hisat.dir/\1.bam")
 def hisatAlignments(infiles, outfile):
-    '''Align reads using hisat with known and novel junctions'''
+    '''
+    Align reads using HISAT with known and novel junctions.
+    '''
 
     reads_one, novel_splice_sites = infiles
 
@@ -653,7 +673,7 @@ def hisatAlignments(infiles, outfile):
                    rm $sort_sam;
                  '''
 
-    P.run()
+    P.run(statement)
 
 
 @follows(hisatAlignments)
@@ -710,7 +730,7 @@ def prepareQuantitationGenesetGTF(infile, outfile):
 
     statement = geneset_stat + spikein_stat + "gzip %(outname)s"
 
-    P.run()
+    P.run(statement)
 
 
 @follows(mkdir("annotations.dir"))
@@ -734,7 +754,7 @@ def prepareEnsemblGenesetFlat(infile, outfile):
                     > %(outfile)s
                  '''
 
-    P.run()
+    P.run(statement)
 
 
 @follows(mkdir("annotations.dir"))
@@ -753,7 +773,7 @@ def fetchEnsemblAnnotations(infile, outfile):
                    --dataset=%(ensembl_dataset)s
                    --outfile=%(outfile)s
                 '''
-    P.run()
+    P.run(statement)
 
 
 @transform(fetchEnsemblAnnotations,
@@ -799,7 +819,7 @@ def tx2gene(infile, outfile):
                        '''
         statement = spikein_stat
 
-        P.run()
+        P.run(statement)
 
 
 @follows(prepareQuantitationGenesetGTF,
@@ -865,17 +885,17 @@ def featureCounts(infiles, outfile):
                         rm $counts;
                  '''
 
-    P.run()
+    P.run(statement)
 
 
 @merge(featureCounts,
        "featureCounts.dir/featurecounts.load")
 def loadFeatureCounts(infiles, outfile):
     '''
-    Load count data in the project database.
+    Combine and load count data in the project database.
     '''
 
-    P.concatenateAndLoad(infiles, outfile,
+    P.concatenate_and_load(infiles, outfile,
                          regex_filename=".*/(.*).counts.gz",
                          has_titles=False,
                          cat="track",
@@ -888,7 +908,7 @@ def loadFeatureCounts(infiles, outfile):
        "featureCounts.dir/featurecounts_counts.txt")
 def featurecountsGeneCounts(infile, outfile):
     '''
-    Prepare a gene x sample table of featureCounts counts.
+    Prepare a gene-by-sample table of featureCounts counts.
     '''
 
     table = P.toTable(infile)
@@ -908,6 +928,9 @@ def featurecountsGeneCounts(infile, outfile):
            suffix(".txt"),
            ".load")
 def loadFeaturecountsTables(infile, outfile):
+    '''
+    Load the gene-by-sample matrix of count data in the project database.
+    '''
 
     P.load(infile, outfile, options='-i "gene_id"')
 
@@ -957,16 +980,18 @@ def salmon(infiles, outfile):
                     &> %(outfile)s;
               '''
 
-    P.run()
+    P.run(statement)
 
 
 @merge(salmon, "salmon.dir/salmon.transcripts.load")
 def loadSalmonTranscriptQuant(infiles, outfile):
-    '''load the salmon results'''
+    '''
+    Load the salmon transcript-level results.
+    '''
 
     tables = [x.replace(".log", "/quant.sf") for x in infiles]
 
-    P.concatenateAndLoad(tables, outfile,
+    P.concatenate_and_load(tables, outfile,
                          regex_filename=".*/(.*)/quant.sf",
                          cat="sample_id",
                          options="-i Name",
@@ -975,11 +1000,13 @@ def loadSalmonTranscriptQuant(infiles, outfile):
 
 @merge(salmon, "salmon.dir/salmon.genes.load")
 def loadSalmonGeneQuant(infiles, outfile):
-    '''load the salmon results'''
+    '''
+    Load the salmon gene-level results.
+    '''
 
     tables = [x.replace(".log", "/quant.genes.sf") for x in infiles]
 
-    P.concatenateAndLoad(tables, outfile,
+    P.concatenate_and_load(tables, outfile,
                          regex_filename=".*/(.*)/quant.genes.sf",
                          cat="sample_id",
                          options="-i Name",
@@ -992,7 +1019,9 @@ def loadSalmonGeneQuant(infiles, outfile):
            regex(r"(.*)/(.*).load"),
            r"\1/\2.tpms.txt")
 def salmonTPMs(infile, outfile):
-    '''Prepare a wide table of salmon TPMs (samples x transcripts|genes)'''
+    '''
+    Prepare a wide table of salmon TPMs (samples x transcripts|genes).
+    '''
 
     table = P.toTable(infile)
 
@@ -1020,6 +1049,9 @@ def salmonTPMs(infile, outfile):
            suffix(".txt"),
            ".load")
 def loadSalmonTPMs(infile, outfile):
+    '''
+    Load a wide table of salmon TPMs in the project database.
+    '''
 
     if "transcript" in infile:
         id_name = "transcript_id"
@@ -1052,7 +1084,9 @@ def loadSalmonTPMs(infile, outfile):
            add_inputs(prepareQuantitationGenesetGTF),
            r"cuffquant.dir/\1.log")
 def cuffQuant(infiles, outfile):
-    '''Per sample quantitation using cuffquant'''
+    '''
+    Per sample quantitation using cuffquant.
+    '''
 
     bam_file, geneset = infiles
 
@@ -1088,15 +1122,17 @@ def cuffQuant(infiles, outfile):
                     rm $gtf;
                 '''
 
-    P.run()
+    P.run(statement)
 
 
 @follows(mkdir("cuffnorm.classic.dir"), cuffQuant)
 @merge([prepareQuantitationGenesetGTF, cuffQuant],
        "cuffnorm.classic.dir/cuffnorm_classic.log")
 def cuffNormClassic(infiles, outfile):
-    '''Calculate classic FPKMs using cuffNorm
-       for copy number estimation'''
+    '''
+    Calculate classic FPKMs using cuffNorm
+    for copy number estimation.
+    '''
 
     cxb_files = " ".join([f[:-len(".log")] + "/abundances.cxb"
                           for f in infiles[1:]])
@@ -1120,7 +1156,9 @@ def cuffNormClassic(infiles, outfile):
            suffix(".log"),
            ".load")
 def loadCuffNormClassic(infile, outfile):
-    '''load the fpkm table from cuffnorm into the database'''
+    '''
+    Load the fpkm table from cuffnorm into the project database.
+    '''
 
     fpkm_table = os.path.dirname(infile) + "/genes.fpkm_table"
 
@@ -1134,7 +1172,8 @@ def loadCuffNormClassic(infile, outfile):
 @merge([prepareQuantitationGenesetGTF, cuffQuant],
        "cuffnorm.uq.dir/cuffnorm_uq.log")
 def cuffNormUQ(infiles, outfile):
-    '''Calculate upper quartile (UQ) normalised FPKMs using cuffNorm
+    '''
+    Calculate upper quartile (UQ) normalised FPKMs using cuffNorm.
     '''
 
     # parse the infiles
@@ -1193,7 +1232,9 @@ def cuffNormUQ(infiles, outfile):
            suffix(".log"),
            ".load")
 def loadCuffNormUQ(infile, outfile):
-    '''load the fpkm table from cuffnorm into the database'''
+    '''
+    Load the fpkm table from cuffnorm into the project database.
+    '''
 
     fpkm_table = os.path.dirname(infile) + "/genes.fpkm_table"
 
@@ -1203,7 +1244,7 @@ def loadCuffNormUQ(infile, outfile):
 
 # ---------------------- Copynumber estimation ------------------------------ #
 
-# Copynumber estimation based on spike-in sequences and Salmon TPMs.
+# Copy number estimation based on spike-in sequences and Salmon TPMs.
 if PARAMS["spikein_estimate_copy_numbers"] is True:
     run_copy_number_estimation = True
 else:
@@ -1215,8 +1256,10 @@ else:
 @files("salmon.dir/salmon.genes.tpms.txt",
        "copy.number.dir/copy_numbers.txt")
 def estimateCopyNumber(infile, outfile):
-    '''Estimate copy numbers based on standard
-       curves constructed from the spike-ins'''
+    '''
+    Estimate copy numbers based on standard
+    curves constructed from the spike-ins.
+    '''
 
     statement = '''Rscript %(scseq_dir)s/R/calculate_copy_number.R
                    --spikeintable=%(spikein_copy_numbers)s
@@ -1226,7 +1269,7 @@ def estimateCopyNumber(infile, outfile):
                    --exprsidcolumn=gene_id
                    --outfile=%(outfile)s
                 '''
-    P.run()
+    P.run(statement)
 
 
 @active_if(run_copy_number_estimation)
@@ -1234,7 +1277,9 @@ def estimateCopyNumber(infile, outfile):
            suffix(".txt"),
            ".load")
 def loadCopyNumber(infile, outfile):
-    '''load the copy number estimations to the database'''
+    '''
+    Load the copy number estimations to the project database.
+    '''
 
     P.load(infile, outfile, options='-i "gene_id"')
 
@@ -1244,7 +1289,9 @@ def loadCopyNumber(infile, outfile):
 @follows(loadFeatureCounts, loadFeaturecountsTables,
          loadSalmonTPMs, loadCopyNumber)
 def quantitation():
-    '''quantitation target'''
+    '''
+    Quantitation target.
+    '''
     pass
 
 
@@ -1267,7 +1314,9 @@ PICARD_MEMORY = str(int(PARAMS["picard_total_mb_memory"]) //
            add_inputs(prepareEnsemblGenesetFlat),
            r"qc.dir/rnaseq.metrics.dir/\1.rnaseq.metrics")
 def collectRnaSeqMetrics(infiles, outfile):
-    '''Run Picard CollectRnaSeqMetrics on the bam files'''
+    '''
+    Run Picard CollectRnaSeqMetrics on the bam files.
+    '''
 
     bam_file, geneset_flat = infiles
 
@@ -1305,15 +1354,17 @@ def collectRnaSeqMetrics(infiles, outfile):
                    rm $picard_out;
                 '''
 
-    P.run()
+    P.run(statement)
 
 
 @merge(collectRnaSeqMetrics,
        "qc.dir/qc_rnaseq_metrics.load")
 def loadCollectRnaSeqMetrics(infiles, outfile):
-    '''load the metrics to the db'''
+    '''
+    Load the metrics to the db.
+    '''
 
-    P.concatenateAndLoad(infiles, outfile,
+    P.concatenate_and_load(infiles, outfile,
                          regex_filename=".*/.*/(.*).rnaseq.metrics",
                          cat="sample_id",
                          options='-i "sample_id"')
@@ -1325,8 +1376,10 @@ def loadCollectRnaSeqMetrics(infiles, outfile):
            suffix(".rnaseq.metrics"),
            ".three.prime.bias")
 def threePrimeBias(infile, outfile):
-    '''compute a sensible three prime bias metric
-       from the picard coverage histogram'''
+    '''
+    Compute a sensible three prime bias metric
+    from the picard coverage histogram.
+    '''
 
     coverage_histogram = infile[:-len(".metrics")] + ".cov.hist"
 
@@ -1347,9 +1400,11 @@ def threePrimeBias(infile, outfile):
 @merge(threePrimeBias,
        "qc.dir/qc_three_prime_bias.load")
 def loadThreePrimeBias(infiles, outfile):
-    '''load the metrics to the db'''
+    '''
+    Load the metrics in the project database.
+    '''
 
-    P.concatenateAndLoad(infiles, outfile,
+    P.concatenate_and_load(infiles, outfile,
                          regex_filename=".*/.*/(.*).three.prime.bias",
                          cat="sample_id",
                          options='-i "sample_id"')
@@ -1362,7 +1417,9 @@ def loadThreePrimeBias(infiles, outfile):
            regex(r".*/(.*).bam"),
            r"qc.dir/library.complexity.dir/\1.library.complexity")
 def estimateLibraryComplexity(infile, outfile):
-    '''Run Picard EstimateLibraryComplexity on the bam files'''
+    '''
+    Run Picard EstimateLibraryComplexity on the BAM files.
+    '''
 
     if PAIRED:
         picard_options = PARAMS["picard_estimatelibrarycomplexity_options"]
@@ -1390,23 +1447,25 @@ def estimateLibraryComplexity(infile, outfile):
         statement = '''echo "Not compatible with SE data"
                        > %(outfile)s'''
 
-    P.run()
+    P.run(statement)
 
 
 @merge(estimateLibraryComplexity,
        "qc.dir/qc_library_complexity.load")
 def loadEstimateLibraryComplexity(infiles, outfile):
-    '''load the complexity metrics to a single table in the db'''
+    '''
+    Load the complexity metrics to a single table in the project database.
+    '''
 
     if PAIRED:
-        P.concatenateAndLoad(infiles, outfile,
+        P.concatenate_and_load(infiles, outfile,
                              regex_filename=".*/.*/(.*).library.complexity",
                              cat="sample_id",
                              options='-i "sample_id"')
     else:
         statement = '''echo "Not compatible with SE data"
                        > %(outfile)s'''
-        P.run()
+        P.run(statement)
 
 
 # ------------------- Picard: AlignmentSummaryMetrics ----------------------- #
@@ -1417,7 +1476,9 @@ def loadEstimateLibraryComplexity(infiles, outfile):
            (r"qc.dir/alignment.summary.metrics.dir"
             r"/\1.alignment.summary.metrics"))
 def alignmentSummaryMetrics(infile, outfile):
-    '''Run Picard AlignmentSummaryMetrics on the bam files'''
+    '''
+    Run Picard AlignmentSummaryMetrics on the bam files.
+    '''
 
     picard_options = PARAMS["picard_alignmentsummarymetric_options"]
     validation_stringency = PARAMS["picard_validation_stringency"]
@@ -1443,15 +1504,17 @@ def alignmentSummaryMetrics(infile, outfile):
                    rm $picard_out;
                 '''
 
-    P.run()
+    P.run(statement)
 
 
 @merge(alignmentSummaryMetrics,
        "qc.dir/qc_alignment_summary_metrics.load")
 def loadAlignmentSummaryMetrics(infiles, outfile):
-    '''load the complexity metrics to a single table in the db'''
+    '''
+    Load the complexity metrics to a single table in the project database.
+    '''
 
-    P.concatenateAndLoad(infiles, outfile,
+    P.concatenate_and_load(infiles, outfile,
                          regex_filename=".*/.*/(.*).alignment.summary.metrics",
                          cat="sample_id",
                          options='-i "sample_id"')
@@ -1467,8 +1530,9 @@ def loadAlignmentSummaryMetrics(infiles, outfile):
             (r"qc.dir/insert.size.metrics.dir"
              r"/\1.insert.size.metrics.histogram")])
 def insertSizeMetricsAndHistograms(infile, outfiles):
-    '''Run Picard InsertSizeMetrics on the BAM files to
-       collect summary metrics and histograms'''
+    '''
+    Run Picard InsertSizeMetrics on the BAM files to
+    collect summary metrics and histograms.'''
 
     if PAIRED:
         picard_summary, picard_histogram = outfiles
@@ -1511,18 +1575,20 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
                        echo "Not compatible with SE data"
                        > %(picard_histogram)s
                     '''
-    P.run()
+    P.run(statement)
 
 
 @merge(insertSizeMetricsAndHistograms,
        "qc.dir/qc_insert_size_metrics.load")
 def loadInsertSizeMetrics(infiles, outfile):
-    '''load the insert size metrics to a single table'''
+    '''
+    Load the insert size metrics to a single table of the project database.
+    '''
 
     if PAIRED:
         picard_summaries = [x[0] for x in infiles]
 
-        P.concatenateAndLoad(picard_summaries, outfile,
+        P.concatenate_and_load(picard_summaries, outfile,
                              regex_filename=(".*/.*/(.*)"
                                              ".insert.size.metrics.summary"),
                              cat="sample_id",
@@ -1532,18 +1598,20 @@ def loadInsertSizeMetrics(infiles, outfile):
         statement = '''echo "Not compatible with SE data"
                        > %(outfile)s
                     '''
-        P.run()
+        P.run(statement)
 
 
 @merge(insertSizeMetricsAndHistograms,
        "qc.dir/qc_insert_size_histogram.load")
 def loadInsertSizeHistograms(infiles, outfile):
-    '''load the histograms to a single table'''
+    '''
+    Load the histograms to a single table of the project database.
+    '''
 
     if PAIRED:
         picard_histograms = [x[1] for x in infiles]
 
-        P.concatenateAndLoad(picard_histograms, outfile,
+        P.concatenate_and_load(picard_histograms, outfile,
                              regex_filename=(".*/.*/(.*)"
                                              ".insert.size.metrics.histogram"),
                              cat="sample_id",
@@ -1553,7 +1621,7 @@ def loadInsertSizeHistograms(infiles, outfile):
         statement = '''echo "Not compatible with SE data"
                        > %(outfile)s
                     '''
-        P.run()
+        P.run(statement)
 
 
 # -------------- No. reads mapping to spike-ins vs genome ------------------- #
@@ -1563,9 +1631,10 @@ def loadInsertSizeHistograms(infiles, outfile):
            regex(r".*/(.*).bam"),
            r"qc.dir/spike.vs.genome.dir/\1.uniq.mapped.reads")
 def spikeVsGenome(infile, outfile):
-    '''Summarise the number of reads mapping uniquely to spike-ins and genome.
-       Compute the ratio of reads mapping to spike-ins vs genome.
-       Only uniquely mapping reads are considered'''
+    '''
+    Summarise the number of reads mapping uniquely to spike-ins and genome.
+    Compute the ratio of reads mapping to spike-ins vs genome.
+    Only uniquely mapping reads are considered.'''
 
     # TODO: do this from featureCounts instead
 
@@ -1584,16 +1653,18 @@ def spikeVsGenome(infile, outfile):
                                print genome,spikein,frac};'
                     >> %(outfile)s
                 '''
-    P.run()
+    P.run(statement)
 
 
 @merge(spikeVsGenome,
        "qc.dir/qc_spike_vs_genome.load")
 def loadSpikeVsGenome(infiles, outfile):
-    '''Load number of reads uniquely mapping to genome & spike-ins
-       and fraction of spike-ins to a single db table'''
+    '''
+    Load number of reads uniquely mapping to genome & spike-ins
+    and fraction of spike-ins to a single table of the project database.
+    '''
 
-    P.concatenateAndLoad(infiles, outfile,
+    P.concatenate_and_load(infiles, outfile,
                          regex_filename=".*/.*/(.*).uniq.mapped.reads",
                          cat="sample_id",
                          options='-i "sample_id"')
@@ -1605,7 +1676,9 @@ def loadSpikeVsGenome(infiles, outfile):
 @files("salmon.dir/salmon.genes.tpms.load",
        "qc.dir/number.genes.detected.salmon")
 def numberGenesDetectedSalmon(infile, outfile):
-    '''Count no genes detected at copynumer > 0 in each sample'''
+    '''
+    Count no genes detected at copynumer > 0 in each sample.
+    '''
 
     table = P.toTable(infile)
 
@@ -1636,7 +1709,9 @@ def numberGenesDetectedSalmon(infile, outfile):
 @files(numberGenesDetectedSalmon,
        "qc.dir/qc_no_genes_salmon.load")
 def loadNumberGenesDetectedSalmon(infile, outfile):
-    '''load the numbers of genes expressed to the db'''
+    '''
+    Load the numbers of genes expressed to the project database.
+    '''
 
     P.load(infile, outfile,
            options='-i "sample_id"')
@@ -1645,7 +1720,9 @@ def loadNumberGenesDetectedSalmon(infile, outfile):
 @files(loadFeatureCounts,
        "qc.dir/number.genes.detected.featurecounts")
 def numberGenesDetectedFeatureCounts(infile, outfile):
-    '''Count no genes detected by featureCount at counts > 0 in each sample'''
+    '''
+    Count of genes detected by featureCount at counts > 0 in each sample.
+    '''
 
     table = P.toTable(infile)
 
@@ -1675,7 +1752,9 @@ def numberGenesDetectedFeatureCounts(infile, outfile):
 @files(numberGenesDetectedFeatureCounts,
        "qc.dir/qc_no_genes_featurecounts.load")
 def loadNumberGenesDetectedFeatureCounts(infile, outfile):
-    '''load the numbers of genes expressed to the db'''
+    '''
+    Load the numbers of genes expressed to the project database.
+    '''
 
     P.load(infile, outfile,
            options='-i "sample_id"')
@@ -1688,9 +1767,11 @@ def loadNumberGenesDetectedFeatureCounts(infile, outfile):
            regex(r".*/(.*).bam"),
            r"qc.dir/fraction.spliced.dir/\1.fraction.spliced")
 def fractionReadsSpliced(infile, outfile):
-    '''Compute fraction of reads containing a splice junction.
-       * paired-endedness is ignored
-       * only uniquely mapping reads are considered'''
+    '''
+    Compute fraction of reads containing a splice junction.
+    * paired-endedness is ignored
+    * only uniquely mapping reads are considered.
+    '''
 
     statement = '''echo "fraction_spliced" > %(outfile)s;
                    checkpoint;
@@ -1703,15 +1784,17 @@ def fractionReadsSpliced(infile, outfile):
                    >> %(outfile)s
                  '''
 
-    P.run()
+    P.run(statement)
 
 
 @merge(fractionReadsSpliced,
        "qc.dir/qc_fraction_spliced.load")
 def loadFractionReadsSpliced(infiles, outfile):
-    '''load to fractions of spliced reads to a single db table'''
+    '''
+    Load to fractions of spliced reads to a single table of the project database.
+    '''
 
-    P.concatenateAndLoad(infiles, outfile,
+    P.concatenate_and_load(infiles, outfile,
                          regex_filename=".*/.*/(.*).fraction.spliced",
                          cat="sample_id",
                          options='-i "sample_id"')
@@ -1723,7 +1806,9 @@ def loadFractionReadsSpliced(infiles, outfile):
 @files(None,
        "annotations.dir/sample.information.txt")
 def sampleInformation(infiles, outfile):
-    '''make a database table containing per-sample information.'''
+    '''
+    Make a database table containing per-sample information.
+    '''
 
     SAMPLES.to_csv(outfile, index=False, sep="\t")
 
@@ -1732,7 +1817,9 @@ def sampleInformation(infiles, outfile):
            suffix(".txt"),
            ".load")
 def loadSampleInformation(infile, outfile):
-    '''load the sample information table to the db'''
+    '''
+    Load the sample information table to the project database.
+    '''
 
     P.load(infile, outfile)
 
@@ -1749,7 +1836,9 @@ def loadSampleInformation(infile, outfile):
         loadInsertSizeMetrics],
        "qc.dir/qc_summary.txt")
 def qcSummary(infiles, outfile):
-    '''create a summary table of relevant QC metrics'''
+    '''
+    Create a summary table of relevant QC metrics.
+    '''
 
     # Some QC metrics are specific to paired end data
     if PAIRED:
@@ -1826,14 +1915,18 @@ def qcSummary(infiles, outfile):
            suffix(".txt"),
            ".load")
 def loadQCSummary(infile, outfile):
-    '''load summary to db'''
+    '''
+    Load summary to project database.
+    '''
 
     P.load(infile, outfile)
 
 
 @follows(loadQCSummary, loadInsertSizeHistograms)
 def qc():
-    '''target for executing qc'''
+    '''
+    Target for executing quality control.
+    '''
     pass
 
 
@@ -1847,8 +1940,10 @@ def qc():
            regex(r".*/(.*)"),
            r"notebook.dir/\1")
 def notebooks(infile, outfile):
-    '''Utility function to copy the notebooks from the source directory
-       to the working directory'''
+    '''
+    Utility function to copy the notebooks from the source directory
+    to the working directory.
+    '''
 
     shutil.copy(infile, outfile)
 
