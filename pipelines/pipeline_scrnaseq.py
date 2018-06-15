@@ -852,6 +852,11 @@ def featureCounts(infiles, outfile):
     else:
         paired_options = ""
 
+    if PARAMS["featurecounts_options"] is None:
+        featurecounts_options = ""
+    else:
+        featurecounts_options = PARAMS["featurecounts_options"]
+
     job_threads = PARAMS["featurecounts_threads"]
 
     statement = '''cd %(tmpdir)s;
@@ -1305,7 +1310,10 @@ def collectRnaSeqMetrics(infiles, outfile):
 
     bam_file, geneset_flat = infiles
 
-    picard_options = PARAMS["picard_collectrnaseqmetrics_options"]
+    if PARAMS["picard_collectrnaseqmetrics_options"]:
+        picard_options = PARAMS["picard_collectrnaseqmetrics_options"]
+    else:
+        picard_options = ""
 
     validation_stringency = PARAMS["picard_validation_stringency"]
 
@@ -1403,7 +1411,10 @@ def estimateLibraryComplexity(infile, outfile):
     '''
 
     if PAIRED:
-        picard_options = PARAMS["picard_estimatelibrarycomplexity_options"]
+        if PARAMS["picard_estimatelibrarycomplexity_options"]:
+            picard_options = PARAMS["picard_estimatelibrarycomplexity_options"]
+        else:
+            picard_options = ""
 
         validation_stringency = PARAMS["picard_validation_stringency"]
 
@@ -1512,7 +1523,11 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
     if PAIRED:
         picard_summary, picard_histogram = outfiles
         picard_histogram_pdf = picard_histogram + ".pdf"
-        picard_options = PARAMS["picard_insertsizemetric_options"]
+
+        if PARAMS["picard_insertsizemetric_options"]:
+            picard_options = PARAMS["picard_insertsizemetric_options"]
+        else:
+            picard_options = ""
 
         job_threads = PICARD_THREADS
         job_memory = PICARD_MEMORY
