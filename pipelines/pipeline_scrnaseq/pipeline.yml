@@ -72,8 +72,10 @@ paired: True
 #                      SALMON: (I)SR
 strandedness: none
 
-# Location of the local database, relative to the working directory
-database: csvdb
+# Database options
+# ---------------
+database:
+    url: sqlite:///./csvdb
 
 # Location of the accompanying "PipelineScRnaseq" Python module.
 # If not set it is assummed that the module is in the same location
