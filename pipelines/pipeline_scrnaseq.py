@@ -899,7 +899,7 @@ def featurecountsGeneCounts(infile, outfile):
     Prepare a gene-by-sample table of featureCounts counts.
     '''
 
-    table = P.toTable(infile)
+    table = P.to_table(infile)
     con = sqlite3.connect(PARAMS["database_name"])
     c = con.cursor()
 
@@ -1011,7 +1011,7 @@ def salmonTPMs(infile, outfile):
     Prepare a wide table of salmon TPMs (samples x transcripts|genes).
     '''
 
-    table = P.toTable(infile)
+    table = P.to_table(infile)
 
     if "transcript" in table:
         id_name = "transcript_id"
@@ -1649,7 +1649,7 @@ def numberGenesDetectedSalmon(infile, outfile):
     Count no genes detected at copynumer > 0 in each sample.
     '''
 
-    table = P.toTable(infile)
+    table = P.to_table(infile)
 
     statement = '''select distinct s.*, i.gene_biotype
                    from %(table)s s
@@ -1693,7 +1693,7 @@ def numberGenesDetectedFeatureCounts(infile, outfile):
     Count of genes detected by featureCount at counts > 0 in each sample.
     '''
 
-    table = P.toTable(infile)
+    table = P.to_table(infile)
 
     # attach = '''attach "%(ANN_DATABASE)s" as anndb''' % globals()
     statement = '''select distinct h.*, gene_biotype
@@ -1826,8 +1826,8 @@ def qcSummary(infiles, outfile):
         paired_columns = ''
         pcat = "UNPAIRED"
 
-    tables = [P.toTable(x) for x in infiles
-              if P.toTable(x) not in exclude]
+    tables = [P.to_table(x) for x in infiles
+              if P.to_table(x) not in exclude]
 
     t1 = tables[0]
 
