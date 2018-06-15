@@ -182,7 +182,7 @@ import sqlite3
 import pandas as pd
 import numpy as np
 
-from CGATCore import Experiment as E
+import CGATCore.Experiment as E
 from CGATCore import Pipeline as P
 from CGATCore import Database as DB
 
@@ -199,9 +199,10 @@ if len(sys.argv) > 1:
 # -------------------------- < parse parameters > --------------------------- #
 
 # load options from the config file
-PARAMS = P.get_parameters(["%s/pipeline.yml" % os.path.splitext(__file__)[0],
-                          "../pipeline.yml",
-                          "pipeline.yml"])
+PARAMS = P.get_parameters(
+    ["%s/pipeline.yml" % os.path.splitext(__file__)[0],
+     "../pipeline.yml",
+     "pipeline.yml"])
 
 # Establish the location of module scripts for P.submit() functions
 if PARAMS["code_dir"] == "":
