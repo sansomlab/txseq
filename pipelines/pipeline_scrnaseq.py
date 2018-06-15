@@ -182,7 +182,7 @@ import sqlite3
 import pandas as pd
 import numpy as np
 
-import CGATCore.Experiment as E
+from CGATCore import Experiment as E
 from CGATCore import Pipeline as P
 from CGATCore import Database as DB
 
