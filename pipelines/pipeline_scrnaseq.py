@@ -182,7 +182,7 @@ import sqlite3
 import pandas as pd
 import numpy as np
 
-import CGATCore.Experiment as E
+from CGATCore import Experiment as E
 from CGATCore import Pipeline as P
 from CGATCore import Database as DB
 
@@ -269,7 +269,7 @@ if any([x in NAME_FIELD_TITLES for x in ("sample_id")]):
 
 # Sanity check file names
 for sample_id in SAMPLE_IDS:
-    if len(sample_id.split("_")) != len(NAME_FIELD_TITLES):
+    if len(sample_id.split(b'_')) != len(NAME_FIELD_TITLES):
         raise ValueError("%(sample_id)s does not have the expected"
                          " number of name fields (%(NAME_FIELD_TITLES)s)."
                          " Note that name fields must be separated with"
@@ -277,7 +277,7 @@ for sample_id in SAMPLE_IDS:
 
 # Prepare sample table
 SAMPLES = pd.DataFrame([dict(list(zip(["sample_id"] + NAME_FIELD_TITLES,
-                                      [SAMPLE_ID] + SAMPLE_ID.split("_"))))
+                                      [SAMPLE_ID] + SAMPLE_ID.split(b'_'))))
                         for SAMPLE_ID in SAMPLE_IDS])
 
 
@@ -592,17 +592,16 @@ def hisatFirstPass(infile, outfile):
     hisat_strand_param = HISAT_STRAND_PARAM
 
     statement = '''%(hisat_executable)s
-                      -x %(index)s
-                      %(fastq_input)s
-                      --threads %(job_threads)s
-                      --novel-splicesite-outfile %(out_name)s
-                      %(hisat_strand_param)s
-                      %(hisat_options)s
-                      -S /dev/null
-                   &> %(log)s;
-                   checkpoint;
-                   gzip %(out_name)s;
-                 '''
+                        -x %(index)s
+                        %(fastq_input)s
+                        --threads %(job_threads)s
+                        --novel-splicesite-outfile %(out_name)s
+                        %(hisat_strand_param)s
+                        %(hisat_options)s
+                        -S /dev/null
+                        &> %(log)s;
+                    gzip %(out_name)s
+                '''
 
     P.run(statement)
 
@@ -657,7 +656,6 @@ def hisatAlignments(infiles, outfile):
     hisat_strand_param = HISAT_STRAND_PARAM
 
     statement = '''sort_sam=`mktemp -p %(local_tmpdir)s`;
-                   checkpoint;
                    %(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
@@ -668,9 +666,7 @@ def hisatAlignments(infiles, outfile):
                    2> %(log)s
                    | samtools view - -bS
                    | samtools sort - -T $sort_sam -o %(outfile)s >>%(log)s;
-                   checkpoint;
                    samtools index %(outfile)s;
-                   checkpoint;
                    rm $sort_sam;
                  '''
 
@@ -719,12 +715,10 @@ def prepareQuantitationGenesetGTF(infile, outfile):
 
     geneset_stat = '''zcat %(infile)s
                      > %(outname)s;
-                     checkpoint;
                   '''
     if SPIKES:
         spikein_geneset = PARAMS["spikein_geneset"]
         spikein_stat = '''cat %(spikein_geneset)s >> %(outname)s;
-                          checkpoint;
                         '''
     else:
         spikein_stat = ''
@@ -810,7 +804,6 @@ def tx2gene(infile, outfile):
     #  | sed 's/.*gene_id "\([^"]*\)".*transcript_id "\([^"]*\)".*/\2\t\1/g'
     #  | sort -u
     #  > %(outfile)s;
-    #  checkpoint;
     #  '''
 
     if SPIKES:
@@ -863,11 +856,8 @@ def featureCounts(infiles, outfile):
 
     statement = '''cd %(local_tmpdir)s;
                    gtf=`mktemp -p %(local_tmpdir)s`;
-                   checkpoint;
                    counts=`mktemp -p %(local_tmpdir)s`;
-                   checkpoint;
                    zcat %(geneset)s > $gtf;
-                   checkpoint;
                    featureCounts
                         -a $gtf
                         -o $counts
@@ -876,13 +866,10 @@ def featureCounts(infiles, outfile):
                         %(featurecounts_options)s
                         %(paired_options)s
                         %(bamfile)s;
-                        checkpoint;
                         cut -f1,7 $counts
                         | grep -v "#" | grep -v "Geneid"
                         | gzip -c > %(outfile_name)s;
-                        checkpoint;
                         rm $gtf;
-                        checkpoint;
                         rm $counts;
                  '''
 
@@ -1105,9 +1092,7 @@ def cuffQuant(infiles, outfile):
     cufflinks_strand = CUFFLINKS_STRAND
 
     statement = '''gtf=`mktemp -p %(local_tmpdir)s`;
-                   checkpoint;
                    zcat %(geneset)s > $gtf;
-                   checkpoint;
                    cuffquant
                            --output-dir %(output_dir)s
                            --num-threads %(job_threads)s
@@ -1119,7 +1104,6 @@ def cuffQuant(infiles, outfile):
                            --verbose
                            --frag-bias-correct %(genome_multifasta)s
                             $gtf %(bam_file)s >& %(outfile)s;
-                    checkpoint;
                     rm $gtf;
                 '''
 
@@ -1334,7 +1318,6 @@ def collectRnaSeqMetrics(infiles, outfile):
     picard_strand = PICARD_STRAND
 
     statement = '''picard_out=`mktemp -p %(local_tmpdir)s`;
-                   checkpoint;
                    CollectRnaSeqMetrics
                    I=%(bam_file)s
                    REF_FLAT=%(geneset_flat)s
@@ -1343,15 +1326,12 @@ def collectRnaSeqMetrics(infiles, outfile):
                    STRAND_SPECIFICITY=%(picard_strand)s
                    VALIDATION_STRINGENCY=%(validation_stringency)s
                    %(picard_options)s;
-                   checkpoint;
                    grep . $picard_out | grep -v "#" | head -n2
                    > %(outfile)s;
-                   checkpoint;
                    grep . $picard_out
                    | grep -A 102 "## HISTOGRAM"
                    | grep -v "##"
                    > %(coverage_out)s;
-                   checkpoint;
                    rm $picard_out;
                 '''
 
@@ -1431,16 +1411,13 @@ def estimateLibraryComplexity(infile, outfile):
         job_memory = PICARD_MEMORY
 
         statement = '''picard_out=`mktemp -p %(local_tmpdir)s`;
-                       checkpoint;
                        EstimateLibraryComplexity
                        I=%(infile)s
                        O=$picard_out
                        VALIDATION_STRINGENCY=%(validation_stringency)s
                        %(picard_options)s;
-                       checkpoint;
                        grep . $picard_out | grep -v "#" | head -n2
                        > %(outfile)s;
-                       checkpoint;
                        rm $picard_out;
                     '''
 
@@ -1491,17 +1468,14 @@ def alignmentSummaryMetrics(infile, outfile):
                                       PARAMS["annotations_genome"] + ".fasta")
 
     statement = '''picard_out=`mktemp -p %(local_tmpdir)s`;
-                   checkpoint;
                    CollectAlignmentSummaryMetrics
                    I=%(infile)s
                    O=$picard_out
                    REFERENCE_SEQUENCE=%(reference_sequence)s
                    VALIDATION_STRINGENCY=%(validation_stringency)s
                    %(picard_options)s;
-                   checkpoint;
                    grep . $picard_out | grep -v "#"
                    > %(outfile)s;
-                   checkpoint;
                    rm $picard_out;
                 '''
 
@@ -1549,7 +1523,6 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
                                           ".fasta")
 
         statement = '''picard_out=`mktemp -p %(local_tmpdir)s`;
-                       checkpoint;
                        CollectInsertSizeMetrics
                        I=%(infile)s
                        O=$picard_out
@@ -1557,13 +1530,10 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
                        VALIDATION_STRINGENCY=%(validation_stringency)s
                        REFERENCE_SEQUENCE=%(reference_sequence)s
                        %(picard_options)s;
-                       checkpoint;
                        grep "MEDIAN_INSERT_SIZE" -A 1 $picard_out
                        > %(picard_summary)s;
-                       checkpoint;
                        sed -e '1,/## HISTOGRAM/d' $picard_out
                        > %(picard_histogram)s;
-                       checkpoint;
                        rm $picard_out;
                     '''
 
@@ -1572,7 +1542,6 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
 
         statement = '''echo "Not compatible with SE data"
                        > %(picard_summary)s;
-                       checkpoint;
                        echo "Not compatible with SE data"
                        > %(picard_histogram)s
                     '''
@@ -1643,7 +1612,6 @@ def spikeVsGenome(infile, outfile):
                         "fraction_spike"])
 
     statement = ''' echo -e "%(header)s" > %(outfile)s;
-                    checkpoint;
                     samtools view %(infile)s
                     | grep NH:i:1
                     | awk 'BEGIN{OFS="\\t";spikein=0;genome=0};
@@ -1775,7 +1743,6 @@ def fractionReadsSpliced(infile, outfile):
     '''
 
     statement = '''echo "fraction_spliced" > %(outfile)s;
-                   checkpoint;
                    samtools view %(infile)s
                    | grep NH:i:1
                    | cut -f 6
