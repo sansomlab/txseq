@@ -199,9 +199,9 @@ if len(sys.argv) > 1:
 # -------------------------- < parse parameters > --------------------------- #
 
 # load options from the config file
-PARAMS = P.getParameters(["%s/pipeline.ini" % os.path.splitext(__file__)[0],
-                          "../pipeline.ini",
-                          "pipeline.ini"])
+PARAMS = P.get_parameters(["%s/pipeline.yml" % os.path.splitext(__file__)[0],
+                          "../pipeline.yml",
+                          "pipeline.yml"])
 
 # Establish the location of module scripts for P.submit() functions
 if PARAMS["code_dir"] == "":
