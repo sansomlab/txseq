@@ -987,7 +987,7 @@ def loadSalmonTranscriptQuant(infiles, outfile):
     P.concatenate_and_load(tables, outfile,
                          regex_filename=".*/(.*)/quant.sf",
                          cat="sample_id",
-                         options="-i Name",
+                         options="-i Name -i sample_id",
                          job_memory=PARAMS["sql_himem"])
 
 
@@ -1002,7 +1002,7 @@ def loadSalmonGeneQuant(infiles, outfile):
     P.concatenate_and_load(tables, outfile,
                          regex_filename=".*/(.*)/quant.genes.sf",
                          cat="sample_id",
-                         options="-i Name",
+                         options="-i Name -i sample_id",
                          job_memory=PARAMS["sql_himem"])
 
 
