@@ -75,6 +75,9 @@ strandedness: none
 # Database options
 # ---------------
 database:
+    # Database filename in the working directory (for read access)
+    name: csvdb
+    # Database URL (for write access)
     url: sqlite:///./csvdb
 
 # Location of the accompanying "PipelineScRnaseq" Python module.
