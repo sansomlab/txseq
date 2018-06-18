@@ -377,7 +377,7 @@ def getGenomeContigs(infile, outfile):
     Extract contig names from genome FASTA file.
     '''
 
-    statement = '''grep \> %(infile)s
+    statement = '''grep \\> %(infile)s
                    | sed 's/>//g'
                    | sort -u -T %(cluster_tmpdir)s
                    > %(outfile)s
@@ -871,12 +871,12 @@ def loadFeatureCounts(infiles, outfile):
     '''
 
     P.concatenate_and_load(infiles, outfile,
-                         regex_filename=".*/(.*).counts.gz",
-                         has_titles=False,
-                         cat="track",
-                         header="track,gene_id,counts",
-                         options='-i "gene_id"',
-                         job_memory=PARAMS["sql_himem"])
+                           regex_filename=".*/(.*).counts.gz",
+                           has_titles=False,
+                           cat="track",
+                           header="track,gene_id,counts",
+                           options='-i "gene_id"',
+                           job_memory=PARAMS["sql_himem"])
 
 
 @files(loadFeatureCounts,
@@ -967,10 +967,10 @@ def loadSalmonTranscriptQuant(infiles, outfile):
     tables = [x.replace(".log", "/quant.sf") for x in infiles]
 
     P.concatenate_and_load(tables, outfile,
-                         regex_filename=".*/(.*)/quant.sf",
-                         cat="sample_id",
-                         options="-i Name -i sample_id",
-                         job_memory=PARAMS["sql_himem"])
+                           regex_filename=".*/(.*)/quant.sf",
+                           cat="sample_id",
+                           options="-i Name -i sample_id",
+                           job_memory=PARAMS["sql_himem"])
 
 
 @merge(salmon, "salmon.dir/salmon.genes.load")
@@ -982,10 +982,10 @@ def loadSalmonGeneQuant(infiles, outfile):
     tables = [x.replace(".log", "/quant.genes.sf") for x in infiles]
 
     P.concatenate_and_load(tables, outfile,
-                         regex_filename=".*/(.*)/quant.genes.sf",
-                         cat="sample_id",
-                         options="-i Name -i sample_id",
-                         job_memory=PARAMS["sql_himem"])
+                           regex_filename=".*/(.*)/quant.genes.sf",
+                           cat="sample_id",
+                           options="-i Name -i sample_id",
+                           job_memory=PARAMS["sql_himem"])
 
 
 @jobs_limit(1)
@@ -1336,9 +1336,9 @@ def loadCollectRnaSeqMetrics(infiles, outfile):
     '''
 
     P.concatenate_and_load(infiles, outfile,
-                         regex_filename=".*/.*/(.*).rnaseq.metrics",
-                         cat="sample_id",
-                         options='-i "sample_id"')
+                           regex_filename=".*/.*/(.*).rnaseq.metrics",
+                           cat="sample_id",
+                           options='-i "sample_id"')
 
 
 # --------------------- Three prime bias analysis --------------------------- #
@@ -1376,9 +1376,9 @@ def loadThreePrimeBias(infiles, outfile):
     '''
 
     P.concatenate_and_load(infiles, outfile,
-                         regex_filename=".*/.*/(.*).three.prime.bias",
-                         cat="sample_id",
-                         options='-i "sample_id"')
+                           regex_filename=".*/.*/(.*).three.prime.bias",
+                           cat="sample_id",
+                           options='-i "sample_id"')
 
 
 # ----------------- Picard: EstimateLibraryComplexity ----------------------- #
@@ -1430,9 +1430,9 @@ def loadEstimateLibraryComplexity(infiles, outfile):
 
     if PAIRED:
         P.concatenate_and_load(infiles, outfile,
-                             regex_filename=".*/.*/(.*).library.complexity",
-                             cat="sample_id",
-                             options='-i "sample_id"')
+                               regex_filename=".*/.*/(.*).library.complexity",
+                               cat="sample_id",
+                               options='-i "sample_id"')
     else:
         statement = '''echo "Not compatible with SE data"
                        > %(outfile)s'''
@@ -1482,10 +1482,11 @@ def loadAlignmentSummaryMetrics(infiles, outfile):
     Load the complexity metrics to a single table in the project database.
     '''
 
-    P.concatenate_and_load(infiles, outfile,
-                         regex_filename=".*/.*/(.*).alignment.summary.metrics",
-                         cat="sample_id",
-                         options='-i "sample_id"')
+    P.concatenate_and_load(
+        infiles, outfile,
+        regex_filename=".*/.*/(.*).alignment.summary.metrics",
+        cat="sample_id",
+        options='-i "sample_id"')
 
 
 # ------------------- Picard: InsertSizeMetrics ----------------------- #
@@ -1556,10 +1557,10 @@ def loadInsertSizeMetrics(infiles, outfile):
         picard_summaries = [x[0] for x in infiles]
 
         P.concatenate_and_load(picard_summaries, outfile,
-                             regex_filename=(".*/.*/(.*)"
-                                             ".insert.size.metrics.summary"),
-                             cat="sample_id",
-                             options='')
+                               regex_filename=(".*/.*/(.*)"
+                                               ".insert.size.metrics.summary"),
+                               cat="sample_id",
+                               options='')
 
     else:
         statement = '''echo "Not compatible with SE data"
@@ -1578,11 +1579,12 @@ def loadInsertSizeHistograms(infiles, outfile):
     if PAIRED:
         picard_histograms = [x[1] for x in infiles]
 
-        P.concatenate_and_load(picard_histograms, outfile,
-                             regex_filename=(".*/.*/(.*)"
-                                             ".insert.size.metrics.histogram"),
-                             cat="sample_id",
-                             options='-i "insert_size" -e')
+        P.concatenate_and_load(
+            picard_histograms, outfile,
+            regex_filename=(".*/.*/(.*)"
+                            ".insert.size.metrics.histogram"),
+            cat="sample_id",
+            options='-i "insert_size" -e')
 
     else:
         statement = '''echo "Not compatible with SE data"
@@ -1631,9 +1633,9 @@ def loadSpikeVsGenome(infiles, outfile):
     '''
 
     P.concatenate_and_load(infiles, outfile,
-                         regex_filename=".*/.*/(.*).uniq.mapped.reads",
-                         cat="sample_id",
-                         options='-i "sample_id"')
+                           regex_filename=".*/.*/(.*).uniq.mapped.reads",
+                           cat="sample_id",
+                           options='-i "sample_id"')
 
 
 # ------------------------- No. genes detected ------------------------------ #
@@ -1756,13 +1758,13 @@ def fractionReadsSpliced(infile, outfile):
        "qc.dir/qc_fraction_spliced.load")
 def loadFractionReadsSpliced(infiles, outfile):
     '''
-    Load to fractions of spliced reads to a single table of the project database.
+    Load fractions of spliced reads to a single table of the project database.
     '''
 
     P.concatenate_and_load(infiles, outfile,
-                         regex_filename=".*/.*/(.*).fraction.spliced",
-                         cat="sample_id",
-                         options='-i "sample_id"')
+                           regex_filename=".*/.*/(.*).fraction.spliced",
+                           cat="sample_id",
+                           options='-i "sample_id"')
 
 
 # ---------------- Prepare a post-mapping QC summary ------------------------ #
@@ -1916,6 +1918,7 @@ def notebooks(infile, outfile):
 @follows(quantitation, qc)
 def full():
     pass
+
 
 print(sys.argv)
 
