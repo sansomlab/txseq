@@ -9,10 +9,12 @@ import numpy as np
 from CGATCore import Experiment as E
 from CGATCore import Pipeline as P
 
+# load options from the config file
 PARAMS = P.get_parameters(
-    ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
-     "../pipeline.ini",
-     "pipeline.ini"])
+    ["%s/pipeline.yml" % os.path.splitext(__file__)[0],
+     "../pipeline.yml",
+     "pipeline.yml"])
+
 
 
 # ########################################################################### #

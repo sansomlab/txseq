@@ -205,13 +205,15 @@ PARAMS = P.get_parameters(
      "pipeline.yml"])
 
 # Establish the location of module scripts for P.submit() functions
-if PARAMS["code_dir"] == "":
+# set the location of the tenx code directory
+if "code_dir" not in PARAMS.keys():
     code_dir = os.path.dirname(os.path.realpath(__file__))
 else:
-    code_dir = PARAMS["code_dir"]
+    raise ValueError("Could not set the location of the code directory")
+
 
 # Set the database locations
-DATABASE = PARAMS["database"]
+DATABASE = PARAMS["database"]["file"]
 ANN_DATABASE = PARAMS["annotations_database"]
 
 # set the location of the scseq code directory
@@ -220,35 +222,14 @@ if "scseq_dir" not in PARAMS.keys():
 else:
     raise ValueError("Could not set the location of the scseq code directory")
 
-# ------------------------- < utility functions > --------------------------- #
-
-
-def connect():
-    '''utility function to connect to database.
-
-    Use this method to connect to the pipeline database.
-    Additional databases can be attached here as well.
-
-    Returns an sqlite3 database handle.
-    '''
-
-    dbh = sqlite3.connect(PARAMS["database_name"])
-    statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        PARAMS["annotations_database"])
-    cc = dbh.cursor()
-    cc.execute(statement)
-    cc.close()
-
-    return dbh
-
 
 # ########################################################################### #
 # ############# Check sample files and prepare Sample table  ################ #
 # ########################################################################### #
 
-if PARAMS["input"].lower() == "fastq":
+if PARAMS["input_type"].lower() == "fastq":
     suffix_pattern = "*.fastq.*gz"
-elif PARAMS["input"].lower() == "bam":
+elif PARAMS["input_type"].lower() == "bam":
     suffix_pattern = "*.bam"
 else:
     raise ValueError("this pipeline only supports fastq or bam files")
@@ -346,9 +327,9 @@ if not (GENOME_SOURCE == "ucsc" or GENOME_SOURCE == "ensembl"):
 
 # Check that given annotations and indices contain the expected
 # Ensembl version number
-ENSEMBL_VERSION = str(PARAMS["ensembl_version"])
+ENSEMBL_VERSION = str(PARAMS["annotations_ensembl_version"])
 
-if ENSEMBL_VERSION not in PARAMS["ensembl_geneset"]:
+if ENSEMBL_VERSION not in PARAMS["annotations_ensembl_geneset"]:
     raise ValueError("annotations geneset does not contain the"
                      " given ensembl version number")
 
@@ -378,7 +359,7 @@ if GENOME_NAME not in PARAMS["hisat_index"]:
 # Figure out which geneset to use for quantitation
 
 if PARAMS["annotations_geneset"].lower() == "ensembl":
-    QUANTITATION_GTF = PARAMS["ensembl_geneset"]
+    QUANTITATION_GTF = PARAMS["annotations_ensembl_geneset"]
 else:
     QUANTITATION_GTF = PARAMS["annotations_geneset"]
 
@@ -398,7 +379,7 @@ def getGenomeContigs(infile, outfile):
 
     statement = '''grep \> %(infile)s
                    | sed 's/>//g'
-                   | sort -u
+                   | sort -u -T %(cluster_tmpdir)s
                    > %(outfile)s
                 '''
     P.run(statement)
@@ -415,7 +396,7 @@ def getHisat2Contigs(infile, outfile):
     statement = '''hisat2-inspect -s %(hisat_index)s
                    | grep Sequence
                    | cut -f2
-                   | sort -u
+                   | sort -u -T %(cluster_tmpdir)s
                    > %(outfile)s
                 '''
 
@@ -433,7 +414,7 @@ def getQuantitationGenesetContigs(infile, outfile):
     statement = '''zcat %(infile)s
                    | grep -v ^#
                    | cut -f1
-                   | sort -u
+                   | sort -u -T %(cluster_tmpdir)s
                    > %(outfile)s
                 '''
 
@@ -441,7 +422,7 @@ def getQuantitationGenesetContigs(infile, outfile):
 
 
 @mkdir("preflight.checks.dir")
-@files(PARAMS["ensembl_geneset"],
+@files(PARAMS["annotations_ensembl_geneset"],
        "preflight.checks.dir/ensembl.geneset.contigs.txt")
 def getEnsemblGenesetContigs(infile, outfile):
     '''
@@ -451,7 +432,7 @@ def getEnsemblGenesetContigs(infile, outfile):
     statement = '''zcat %(infile)s
                    | grep -v ^#
                    | cut -f1
-                   | sort -u
+                   | sort -u -T %(cluster_tmpdir)s
                    > %(outfile)s
                 '''
 
@@ -616,7 +597,8 @@ def novelHisatSpliceSites(infiles, outfile):
     junction_files = " ".join(infiles)
 
     statement = '''zcat %(junction_files)s
-                   | sort -k1,1 | uniq
+                   | sort -k1,1 -T %(cluster_tmpdir)s
+                   | uniq
                    > %(outfile)s
                 '''
 
@@ -655,7 +637,7 @@ def hisatAlignments(infiles, outfile):
 
     hisat_strand_param = HISAT_STRAND_PARAM
 
-    statement = '''sort_sam=`mktemp -p %(tmpdir)s`;
+    statement = '''sort_sam=`mktemp -p %(cluster_tmpdir)s`;
                    %(hisat_executable)s
                       -x %(index)s
                       %(fastq_input)s
@@ -685,10 +667,10 @@ def mapping():
 # ########### Collect BAMs from mapping functions or inputs  ################ #
 # ########################################################################### #
 
-if PARAMS["input"] == "fastq":
+if PARAMS["input_type"] == "fastq":
     collectBAMs = hisatAlignments
 
-elif PARAMS["input"] == "bam":
+elif PARAMS["input_type"] == "bam":
     collectBAMs = glob.glob(os.path.join(PARAMS["input_dir"], "*.bam"))
 
 else:
@@ -729,7 +711,7 @@ def prepareQuantitationGenesetGTF(infile, outfile):
 
 
 @follows(mkdir("annotations.dir"))
-@files(PARAMS["ensembl_geneset"],
+@files(PARAMS["annotations_ensembl_geneset"],
        "annotations.dir/ensembl.geneset.flat.gz")
 def prepareEnsemblGenesetFlat(infile, outfile):
     '''
@@ -741,7 +723,7 @@ def prepareEnsemblGenesetFlat(infile, outfile):
                     -genePredExt
                     -geneNameAsName2
                     -ignoreGroupsWithoutExons
-                    %(ensembl_geneset)s
+                    %(infile)s
                     /dev/stdout |
                     awk 'BEGIN { OFS="\\t"}
                          {print $12, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10}'
@@ -764,8 +746,8 @@ def fetchEnsemblAnnotations(infile, outfile):
     job_memory = "10G"
 
     statement = '''Rscript %(scseq_dir)s/R/fetch_ensembl_annotations.R
-                   --host=%(ensembl_host)s
-                   --dataset=%(ensembl_dataset)s
+                   --host=%(annotations_ensembl_host)s
+                   --dataset=%(annotations_ensembl_dataset)s
                    --outfile=%(outfile)s
                 '''
     P.run(statement)
@@ -859,9 +841,9 @@ def featureCounts(infiles, outfile):
 
     job_threads = PARAMS["featurecounts_threads"]
 
-    statement = '''cd %(tmpdir)s;
-                   gtf=`mktemp -p %(tmpdir)s`;
-                   counts=`mktemp -p %(tmpdir)s`;
+    statement = '''cd %(cluster_tmpdir)s;
+                   gtf=`mktemp -p %(cluster_tmpdir)s`;
+                   counts=`mktemp -p %(cluster_tmpdir)s`;
                    zcat %(geneset)s > $gtf;
                    featureCounts
                         -a $gtf
@@ -905,7 +887,7 @@ def featurecountsGeneCounts(infile, outfile):
     '''
 
     table = P.to_table(infile)
-    con = sqlite3.connect(PARAMS["database_name"])
+    con = sqlite3.connect(PARAMS["database_file"])
     c = con.cursor()
 
     sql = '''select track, gene_id, counts
@@ -1025,7 +1007,7 @@ def salmonTPMs(infile, outfile):
     else:
         raise ValueError("Unexpected Salmon table name")
 
-    con = sqlite3.connect(PARAMS["database_name"])
+    con = sqlite3.connect(PARAMS["database_file"])
     c = con.cursor()
 
     sql = '''select sample_id, Name %(id_name)s, TPM tpm
@@ -1096,7 +1078,7 @@ def cuffQuant(infiles, outfile):
 
     cufflinks_strand = CUFFLINKS_STRAND
 
-    statement = '''gtf=`mktemp -p %(tmpdir)s`;
+    statement = '''gtf=`mktemp -p %(cluster_tmpdir)s`;
                    zcat %(geneset)s > $gtf;
                    cuffquant
                            --output-dir %(output_dir)s
@@ -1325,7 +1307,7 @@ def collectRnaSeqMetrics(infiles, outfile):
 
     picard_strand = PICARD_STRAND
 
-    statement = '''picard_out=`mktemp -p %(tmpdir)s`;
+    statement = '''picard_out=`mktemp -p %(cluster_tmpdir)s`;
                    CollectRnaSeqMetrics
                    I=%(bam_file)s
                    REF_FLAT=%(geneset_flat)s
@@ -1421,7 +1403,7 @@ def estimateLibraryComplexity(infile, outfile):
         job_threads = PICARD_THREADS
         job_memory = PICARD_MEMORY
 
-        statement = '''picard_out=`mktemp -p %(tmpdir)s`;
+        statement = '''picard_out=`mktemp -p %(cluster_tmpdir)s`;
                        EstimateLibraryComplexity
                        I=%(infile)s
                        O=$picard_out
@@ -1478,7 +1460,7 @@ def alignmentSummaryMetrics(infile, outfile):
     reference_sequence = os.path.join(PARAMS["annotations_genome_dir"],
                                       PARAMS["annotations_genome"] + ".fasta")
 
-    statement = '''picard_out=`mktemp -p %(tmpdir)s`;
+    statement = '''picard_out=`mktemp -p %(cluster_tmpdir)s`;
                    CollectAlignmentSummaryMetrics
                    I=%(infile)s
                    O=$picard_out
@@ -1537,7 +1519,7 @@ def insertSizeMetricsAndHistograms(infile, outfiles):
                                           PARAMS["annotations_genome"] +
                                           ".fasta")
 
-        statement = '''picard_out=`mktemp -p %(tmpdir)s`;
+        statement = '''picard_out=`mktemp -p %(cluster_tmpdir)s`;
                        CollectInsertSizeMetrics
                        I=%(infile)s
                        O=$picard_out
@@ -1890,7 +1872,7 @@ def qcSummary(infiles, outfile):
 
     statement = "\n".join([stat_start, join_stat, where_stat])
 
-    df = DB.fetch_DataFrame(statement, PARAMS["database_name"])
+    df = DB.fetch_DataFrame(statement, PARAMS["database_file"])
     df.to_csv(outfile, sep="\t", index=False)
 
 

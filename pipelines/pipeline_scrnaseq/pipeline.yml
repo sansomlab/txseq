@@ -1,5 +1,5 @@
 # Pipeline pipeline_scrnaseq.py configuration file
-# ==============================================
+# ================================================
 #
 
 
@@ -10,19 +10,19 @@
 projectname: SingleCellRNASeq001
 
 # Copyright statement.
-copyright: Sansom Group, Kennedy Institute of Rheumatology (2014-2015)
+copyright: Sansom Group, Kennedy Institute of Rheumatology (2014-2018)
 
-# The short X.Y version.
-version: 0.1
+# Sample title specification.
+#
+# * Title name fields must be separated with underscores (i.e. "_")
+#   (this is necessary to ensure SQL/R compatibility).
+#
+# * e.g. "thymocyte_knockout_p2_A_6.fastq|bam"
+#
+name_field_titles: source,condition,plate,row,column
 
-# The full version, including alpha/beta/rc tags.
-release: 0.1
 
-# Title of '_'-separated metadata encoded in the sample name.
-# e.g. considering a sample named "thymocyte_knockout_p2_A_6_tophat.bam":
-name_field_titles: source,genotype,plate,row,column
-
-# Input file type
+# Specify the input file type as either "fastq" or "bam".
 #
 # * fastq
 #      single end fastqs are expected to end with ".fastq.gz"
@@ -32,9 +32,9 @@ name_field_titles: source,genotype,plate,row,column
 #      bam files indexes must also be supplied
 #      bam files must be sorted by position
 #
-#
 # Note that mixed input files types are not supported
-input: fastq
+#
+input_type: fastq
 
 # Location of input files, relative to the working directory
 input_dir: data.dir
@@ -42,7 +42,7 @@ input_dir: data.dir
 # Indicate whether sequencing data is paired-end (True|False)
 paired: True
 
-# Strandedness
+# Strandedness - must be either "none", "forward" or "reverse".
 #
 # "none":  data is treated as unstranded.
 #          e.g. Illumina Truseq, Most single-cell protocols
@@ -70,24 +70,17 @@ paired: True
 #                      HT-seq: reverse
 #                      PICARD: SECOND_READ_TRANSCRIPTION_STRAND
 #                      SALMON: (I)SR
+#
 strandedness: none
 
-# Database options
-# ---------------
+
+# location of the local sqlite3 database
 database:
-    # Database filename in the working directory (for read access)
-    name: csvdb
-    # Database URL (for write access)
-    url: sqlite:///./csvdb
-
-# Location of the accompanying "PipelineScRnaseq" Python module.
-# If not set it is assummed that the module is in the same location
-# as the executed pipeline when executing P.submit() functions.
-code_dir:
+    file: csvdb
 
 
-# Spike-in options (if applicable)
-# ---------------
+# Spike-in options
+# ----------------
 spikein:
     # Whether spike-ins are present in the samples (True|False)
     # Note that the following options are ignored if "present: False"
@@ -101,18 +94,14 @@ spikein:
     geneset: /gfs/mirror/ercc92/ERCC92.gtf
 
     # Location of a transcript-to-gene mapping file for spike-ins
-    # Requirements:
-    # - headerless
-    # - TAB-delimited
-    # - 2 columns: "transcript_id", "gene_id"
+    # (headerless, tab-delimited, two columns: "transcript_id", "gene_id")
     tx2gene: /gfs/mirror/ercc92/ERCC92.tx2gene.txt
 
     # Whether to estimate copy numbers (True|False)
     estimate_copy_numbers: False
 
     # Location of a file containing information about the spike ins
-    # Requirements:
-    # - 2 columns: "gene_id", "copies_per_cell"
+    # (tab-delimited, containing the columns: "gene_id" and "copies_per_cell")
     copy_numbers: /gfs/mirror/ercc92/old/ercc.txt
 
 
@@ -138,31 +127,30 @@ annotations:
     # or (2) a path to a GTF file (e.g. from a stringTie/gffcompare assembly).
     geneset: ensembl
 
+    # ENSEMBL gene annotations options
+    # ---------------
 
-# ENSEMBL gene annotations options
-# ---------------
-ensembl:
     # Current "version" is only used as a sanity check
     # !! the given pattern must occur in the name of the
     # Salmon index and Hisat2 indices !!
-    version: 91
+    ensembl_version: 91
 
     # The biomaRt host for retrieving transcript information
     # e.g. for current annotations: www.ensembl.org
     # e.g. for archive annotations see list available at http://www.ensembl.org/info/website/archives/index.html
     # Note that archive versions must be declared as the host name without "http://"
     # e.g. "dec2017.archive.ensembl.org"
-    host: www.ensembl.org
+    ensembl_host: www.ensembl.org
 
     # The ENSEMBL BioMart dataset to use
     # e.g. hsapiens_gene_ensembl
     # e.g. mmusculus_gene_ensembl
-    dataset: mmusculus_gene_ensembl
+    ensembl_dataset: mmusculus_gene_ensembl
 
     # Location of a GTF file containing the full ENSEMBL geneset.
     # Used for quantification if "annotations_geneset: ensembl" is set above
     # Used to produce a reference for Picard's CollectRnaSeqMetric
-    geneset: /gfs/mirror/ensembl/GRCm38.91.dir/Mus_musculus.GRCm38.91.gtf.gz
+    ensembl_geneset: /gfs/mirror/ensembl/GRCm38.91.dir/Mus_musculus.GRCm38.91.gtf.gz
 
 
 # HISAT2 mapping options
@@ -189,7 +177,7 @@ hisat:
     # to the general "strand" parameter
     options: --known-splicesite-infile=/gfs/mirror/ensembl/genomes/hisat2/GRCm38.91.genome.dir/GRCm38.ensembl91.splices --dta --score-min L,0.0,-0.2
 
-# HISAT2 quasi-mapping options
+# Salmon quasi-mapping options
 # ---------------
 salmon:
     # Number of parallel processes.
@@ -226,12 +214,11 @@ featurecounts:
     options:
 
 
-# cufflinks normalisation options
-# ---------------
+# cufflinks options
+# -----------------
 # Cufflinks is no longer run by default. To run use:
-# 	"make loadCuffNormClassic"
-# 	or
-# 	"make loadCuffNormUQ"
+# "make loadCuffNormClassic" or "make loadCuffNormUQ"
+#
 cufflinks:
     # Number of parallel processes.
     cuffquant_threads: 4
@@ -253,8 +240,8 @@ cufflinks:
     # to the general "strand" parameter
 
 
-# Picard modules options
-# ---------------
+# Picard options
+# --------------
 picard:
     # Note that strand specificity is set automatically according to
     # the general "strand" option defined above.
@@ -285,11 +272,3 @@ sql:
 
     # RAM required for high memory operations (e.g. 5000M)
     himem: 10000M
-
-
-# Sphinx report options
-# ---------------
-report:
-
-    # Prefix to use for publishing the report from this pipeline
-    prefix: default
