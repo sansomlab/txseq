@@ -189,13 +189,6 @@ from CGATCore import Database as DB
 import PipelineScRnaseq as PipelineScRnaseq
 
 
-# ----------------------- < pipeline configuration > ------------------------ #
-
-if len(sys.argv) > 1:
-    if(sys.argv[1] == "config") and __name__ == "__main__":
-        sys.exit(P.main(sys.argv))
-
-
 # -------------------------- < parse parameters > --------------------------- #
 
 # load options from the config file
@@ -203,6 +196,13 @@ PARAMS = P.get_parameters(
     ["%s/pipeline.yml" % os.path.splitext(__file__)[0],
      "../pipeline.yml",
      "pipeline.yml"])
+
+
+# ----------------------- < pipeline configuration > ------------------------ #
+
+if len(sys.argv) > 1:
+    if(sys.argv[1] == "config") and __name__ == "__main__":
+        sys.exit(P.main(sys.argv))
 
 # Establish the location of module scripts for P.submit() functions
 # set the location of the tenx code directory
