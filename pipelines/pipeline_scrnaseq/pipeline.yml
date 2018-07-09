@@ -195,6 +195,11 @@ salmon:
     # mouse: /gfs/mirror/ensembl/genomes/salmon/GRCm38.91.quasi.31/
     index: /gfs/mirror/ensembl/genomes/salmon/GRCm38.91.quasi.31/
 
+    # The source of mappings between transcript_id and gene_id
+    # (1) "ensembl" to use the ensembl_geneset above (recommended)
+    # or (2) a path to a headerless TAB-delimited file mapping transcript_id and gene_id, respectively.
+    tx2gene: ensembl
+
     # Use of --gcBias is generally recommended, but will
     # results in slightly longer run times.
     params: --gcBias
