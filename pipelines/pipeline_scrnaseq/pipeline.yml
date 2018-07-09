@@ -196,7 +196,7 @@ salmon:
     index: /gfs/mirror/ensembl/genomes/salmon/GRCm38.91.quasi.31/
 
     # The source of mappings between transcript_id and gene_id
-    # (1) "ensembl" to use the ensembl_geneset above (recommended)
+    # (1) "ensembl" to use the annotations_ensembl_dataset above (recommended)
     # or (2) a path to a headerless TAB-delimited file mapping transcript_id and gene_id, respectively.
     tx2gene: ensembl
 
