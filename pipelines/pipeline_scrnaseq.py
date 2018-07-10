@@ -798,6 +798,40 @@ def tx2gene(infile, outfile):
         P.run(statement)
 
 
+# Figure out which source to use for mappings between transcript_id and gene_id
+if PARAMS["salmon_tx2gene"].lower() == "ensembl":
+    TX2GENE = tx2gene
+else:
+    TX2GENE = PARAMS["salmon_tx2gene"]
+
+
+@follows(mkdir("annotations.dir"), checkContigs)
+@files(QUANTITATION_GTF,
+       "annotations.dir/quantitation.geneset.gtf.gz")
+def prepareTranscript(infile, outfile):
+    '''
+    Preparation of the GTF file used for quantitation:
+    Spike-in GTF entries are optionally appended
+    to the reference annotation.
+    '''
+
+    outname = outfile[:-len(".gz")]
+
+    geneset_stat = '''zcat %(infile)s
+                     > %(outname)s;
+                  '''
+    if SPIKES:
+        spikein_geneset = PARAMS["spikein_geneset"]
+        spikein_stat = '''cat %(spikein_geneset)s >> %(outname)s;
+                        '''
+    else:
+        spikein_stat = ''
+
+    statement = geneset_stat + spikein_stat + "gzip %(outname)s"
+
+    P.run(statement)
+
+
 @follows(prepareQuantitationGenesetGTF,
          prepareEnsemblGenesetFlat,
          loadEnsemblAnnotations,
@@ -915,7 +949,7 @@ def loadFeaturecountsTables(infile, outfile):
 @follows(mkdir("salmon.dir"))
 @transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
            regex(r".*/(.*).fastq.*.gz"),
-           add_inputs(tx2gene),
+           add_inputs(TX2GENE),
            r"salmon.dir/\1.log")
 def salmon(infiles, outfile):
     '''
