@@ -182,9 +182,9 @@ import sqlite3
 import pandas as pd
 import numpy as np
 
-from CGATCore import Experiment as E
-from CGATCore import Pipeline as P
-from CGATCore import Database as DB
+from cgatcore import experiment as E
+from cgatcore import pipeline as P
+from cgatcore import database as DB
 
 import PipelineScRnaseq as PipelineScRnaseq
 
