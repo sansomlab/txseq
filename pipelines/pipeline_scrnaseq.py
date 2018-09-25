@@ -983,7 +983,6 @@ def salmon(infiles, outfile):
     salmon_libtype = SALMON_LIBTYPE
     salmon_params = PARAMS["salmon_params"]
     job_threads = PARAMS["salmon_threads"]
-    job_memory = "40G"
 
     statement = '''salmon quant -i %(salmon_index)s
                                 -p %(job_threads)s
