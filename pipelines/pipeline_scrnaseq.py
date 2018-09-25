@@ -1431,35 +1431,31 @@ def estimateLibraryComplexity(infile, outfile):
     Run Picard EstimateLibraryComplexity on the BAM files.
     '''
 
-    if PAIRED:
-        if PARAMS["picard_estimatelibrarycomplexity_options"]:
-            picard_options = PARAMS["picard_estimatelibrarycomplexity_options"]
-        else:
-            picard_options = ""
-
-        validation_stringency = PARAMS["picard_validation_stringency"]
-
-        job_threads = PICARD_THREADS
-        job_memory = PICARD_MEMORY
-
-        statement = '''picard_out=`mktemp -p %(cluster_tmpdir)s`;
-                       EstimateLibraryComplexity
-                       I=%(infile)s
-                       O=$picard_out
-                       VALIDATION_STRINGENCY=%(validation_stringency)s
-                       %(picard_options)s;
-                       grep . $picard_out | grep -v "#" | head -n2
-                       > %(outfile)s;
-                       rm $picard_out;
-                    '''
-
+    if PARAMS["picard_estimatelibrarycomplexity_options"]:
+        picard_options = PARAMS["picard_estimatelibrarycomplexity_options"]
     else:
-        statement = '''echo "Not compatible with SE data"
-                       > %(outfile)s'''
+        picard_options = ""
+
+    validation_stringency = PARAMS["picard_validation_stringency"]
+
+    job_threads = PICARD_THREADS
+    job_memory = PICARD_MEMORY
+
+    statement = '''picard_out=`mktemp -p %(cluster_tmpdir)s`;
+                   EstimateLibraryComplexity
+                   I=%(infile)s
+                   O=$picard_out
+                   VALIDATION_STRINGENCY=%(validation_stringency)s
+                   %(picard_options)s;
+                   grep . $picard_out | grep -v "#" | head -n2
+                   > %(outfile)s;
+                   rm $picard_out;
+                '''
 
     P.run(statement)
 
 
+@active_if(PAIRED)
 @merge(estimateLibraryComplexity,
        "qc.dir/qc_library_complexity.load")
 def loadEstimateLibraryComplexity(infiles, outfile):
