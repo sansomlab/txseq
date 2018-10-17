@@ -13,9 +13,9 @@ stopifnot(
 # Test data ----
 
 opt <- list(
-    gtf = "/gfs/mirror/ensembl/GRCm38.91.dir/Mus_musculus.GRCm38.91.gtf.gz",
+    gtf = "annotations.dir/quantitation.geneset.gtf.gz",
     fields = 'gene_id,transcript_id,gene_biotype,transcript_biotype,gene_name',
-    outfile = tempfile()
+    outfile = "output.txt.gz"
 )
 
 # Options ----
@@ -40,7 +40,9 @@ print(opt)
 # Import data from GTF file ----
 
 stopifnot(file.exists(opt$gtf))
-gtfData <- import.gff(opt$gtf)
+gtfData <- import.gff(opt$gtf, feature.type="transcript")
+cat("Transcripts parsed from GTF:\n")
+length(gtfData)
 
 # Extract fields of interest ----
 
@@ -50,11 +52,11 @@ if (!all(fieldsExtract %in% colnames(mcols(gtfData)))) {
     stop("fields arguments contains invalid field names")
 }
 
-fieldsData <- mcols(gtfData)[,fieldsExtract]
+fieldsData <- mcols(gtfData)[, fieldsExtract]
 cat("Dimensions of extracted transcript table:\n")
 dim(fieldsData)
 
-fieldsData <- fieldsData[!duplicated(fieldsData), ]
+fieldsData <- unique(fieldsData)
 cat("Dimensions of deduplicated transcript table:\n")
 dim(fieldsData)
 
