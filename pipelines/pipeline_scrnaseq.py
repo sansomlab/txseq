@@ -1735,6 +1735,7 @@ def loadNumberGenesDetectedSalmon(infile, outfile):
     P.load(infile, outfile,
            options='-i "sample_id"')
 
+
 @follows(annotations)
 @files(loadFeatureCounts,
        "qc.dir/number.genes.detected.featurecounts")
