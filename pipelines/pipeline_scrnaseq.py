@@ -738,7 +738,7 @@ def prepareEnsemblGenesetFlat(infile, outfile):
 
 @follows(mkdir("annotations.dir"))
 @follows(prepareQuantitationGenesetGTF)
-@files("annotations.dir/quantitation.geneset.gtf.gz",
+@files(PARAMS["annotations_ensembl_geneset"],
        "annotations.dir/transcript_info.txt.gz")
 def tabulateTranscriptInfoFromGTF(infile, outfile):
     '''
