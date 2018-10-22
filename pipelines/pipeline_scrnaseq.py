@@ -669,9 +669,11 @@ def mapping():
 
 if PARAMS["input_type"] == "fastq":
     collectBAMs = hisatAlignments
+    fastqMode = True
 
 elif PARAMS["input_type"] == "bam":
     collectBAMs = glob.glob(os.path.join(PARAMS["input_dir"], "*.bam"))
+    fastqMode = False
 
 else:
     raise ValueError('Input type must be either "fastq" or "bam"')
@@ -736,7 +738,7 @@ def prepareEnsemblGenesetFlat(infile, outfile):
 
 @follows(mkdir("annotations.dir"))
 @follows(prepareQuantitationGenesetGTF)
-@files("annotations.dir/quantitation.geneset.gtf.gz",
+@files(PARAMS["annotations_ensembl_geneset"],
        "annotations.dir/transcript_info.txt.gz")
 def tabulateTranscriptInfoFromGTF(infile, outfile):
     '''
@@ -952,6 +954,7 @@ def loadFeaturecountsTables(infile, outfile):
 
 # ---------------------- Salmon TPM calculation ----------------------------- #
 
+@active_if(fastqMode)
 @follows(mkdir("salmon.dir"))
 @transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
            regex(r".*/(.*).fastq.*.gz"),
@@ -1003,6 +1006,7 @@ def salmon(infiles, outfile):
     P.run(statement)
 
 
+@active_if(fastqMode)
 @merge(salmon, "salmon.dir/salmon.transcripts.load")
 def loadSalmonTranscriptQuant(infiles, outfile):
     '''
@@ -1018,6 +1022,7 @@ def loadSalmonTranscriptQuant(infiles, outfile):
                            job_memory=PARAMS["sql_himem"])
 
 
+@active_if(fastqMode)
 @merge(salmon, "salmon.dir/salmon.genes.load")
 def loadSalmonGeneQuant(infiles, outfile):
     '''
@@ -1033,6 +1038,7 @@ def loadSalmonGeneQuant(infiles, outfile):
                            job_memory=PARAMS["sql_himem"])
 
 
+@active_if(fastqMode)
 @jobs_limit(1)
 @transform([loadSalmonTranscriptQuant,
             loadSalmonGeneQuant],
@@ -1065,6 +1071,7 @@ def salmonTPMs(infile, outfile):
     df.to_csv(outfile, sep="\t", index=True, index_label=id_name)
 
 
+@active_if(fastqMode)
 @transform(salmonTPMs,
            suffix(".txt"),
            ".load")
@@ -1303,7 +1310,7 @@ def loadCopyNumber(infile, outfile):
 
 # ----------------------- Quantitation target ------------------------------ #
 
-@follows(loadFeatureCounts, loadFeaturecountsTables,
+@follows(annotations, loadFeatureCounts, loadFeaturecountsTables,
          loadSalmonTPMs, loadCopyNumber)
 def quantitation():
     '''
@@ -1681,6 +1688,7 @@ def loadSpikeVsGenome(infiles, outfile):
 
 # ------------------------- No. genes detected ------------------------------ #
 
+@active_if(fastqMode)
 @follows(mkdir("qc.dir/"), loadSalmonTPMs, loadEnsemblAnnotations)
 @files("salmon.dir/salmon.genes.tpms.load",
        "qc.dir/number.genes.detected.salmon")
@@ -1715,6 +1723,8 @@ def numberGenesDetectedSalmon(infile, outfile):
     count_df.to_csv(outfile, index=False, sep="\t")
 
 
+@active_if(fastqMode)
+@follows(annotations)
 @files(numberGenesDetectedSalmon,
        "qc.dir/qc_no_genes_salmon.load")
 def loadNumberGenesDetectedSalmon(infile, outfile):
@@ -1726,6 +1736,7 @@ def loadNumberGenesDetectedSalmon(infile, outfile):
            options='-i "sample_id"')
 
 
+@follows(annotations)
 @files(loadFeatureCounts,
        "qc.dir/number.genes.detected.featurecounts")
 def numberGenesDetectedFeatureCounts(infile, outfile):
@@ -1866,6 +1877,17 @@ def qcSummary(infiles, outfile):
         paired_columns = ''
         pcat = "UNPAIRED"
 
+    if fastqMode:
+        exclude = exclude
+        fastq_columns = '''qc_no_genes_salmon.protein_coding
+                              as salmon_no_genes_pc,
+                           qc_no_genes_salmon.total
+                              as salmon_no_genes,
+                        '''
+    else:
+        exclude = exclude + ["qc_no_genes_salmon"]
+        fastq_columns = ''
+
     tables = [P.to_table(x) for x in infiles
               if P.to_table(x) not in exclude]
 
@@ -1877,10 +1899,7 @@ def qcSummary(infiles, outfile):
                                     sample_information.sample_id,
                                     fraction_spliced,
                                     fraction_spike,
-                                    qc_no_genes_salmon.protein_coding
-                                       as salmon_no_genes_pc,
-                                    qc_no_genes_salmon.total
-                                       as salmon_no_genes,
+                                    %(fastq_columns)s
                                     qc_no_genes_featurecounts.protein_coding
                                        as featurecounts_no_genes_pc,
                                     qc_no_genes_featurecounts.total
