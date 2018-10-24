@@ -531,7 +531,7 @@ SALMON_INDEX = os.path.join("annotations.dir", SALMON_INDEX_NAME)
 @active_if(PARAMS["input_type"] == "fastq")
 @follows(mkdir("annotations.dir"), checkContigs)
 @files(QUANTITATION_GTF,
-              "annotations.dir/salmon_build.log")
+       "annotations.dir/salmon_build.log")
 def generateSalmonIndex(infile, outfile):
     '''Generate salmon index from annotation gtf. '''
     genome_fasta = os.path.join(PARAMS["annotations_genome_dir"],
