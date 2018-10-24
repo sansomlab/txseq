@@ -333,11 +333,6 @@ if ENSEMBL_VERSION not in PARAMS["annotations_ensembl_geneset"]:
     raise ValueError("annotations geneset does not contain the"
                      " given ensembl version number")
 
-# if (PARAMS["annotations_geneset"] == "ensembl" and
-#         ENSEMBL_VERSION not in PARAMS["salmon_index"]):
-#     raise ValueError("salmon index does not contain the"
-#                      " given ensembl version number")
-
 if (PARAMS["annotations_geneset"] == "ensembl" and
         ENSEMBL_VERSION not in PARAMS["hisat_index"]):
     raise ValueError("hisat index does not contain the"
@@ -347,10 +342,6 @@ if (PARAMS["annotations_geneset"] == "ensembl" and
 # genome name
 
 GENOME_NAME = PARAMS["annotations_genome"]
-
-# if GENOME_NAME not in PARAMS["salmon_index"]:
-#     raise ValueError("salmon index does not contain the"
-#                      " given genome name")
 
 if GENOME_NAME not in PARAMS["hisat_index"]:
     raise ValueError("hisat_index does not contain the"
