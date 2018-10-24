@@ -521,21 +521,22 @@ def checkContigs(infiles, outfile):
 # #################### Generate salmon index ################################ #
 # ########################################################################### #
 
-SALMON_INDEX_NAME = ".".join([os.path.basename(QUANTITATION_GTF[:-len(".gtf.gz")]),
-                           PARAMS["salmon_index_type"],
-                           str(PARAMS["salmon_index_k"])])
+SALMON_INDEX_NAME = ".".join(
+    [os.path.basename(QUANTITATION_GTF[:-len(".gtf.gz")]),
+     PARAMS["salmon_index_type"],
+     str(PARAMS["salmon_index_k"])])
 SALMON_INDEX = os.path.join("annotations.dir", SALMON_INDEX_NAME)
+
 
 @active_if(PARAMS["input_type"] == "fastq")
 @follows(mkdir("annotations.dir"), checkContigs)
 @files(QUANTITATION_GTF,
               "annotations.dir/salmon_build.log")
 def generateSalmonIndex(infile, outfile):
-
+    '''Generate salmon index from annotation gtf. '''
     genome_fasta = os.path.join(PARAMS["annotations_genome_dir"],
                                 PARAMS["annotations_genome_fasta"])
     index_folder = SALMON_INDEX
-
     job_memory = PARAMS["salmon_index_memory"]
     statement = '''fasta_out=`mktemp -p %(cluster_tmpdir)s`;
             gtf=`mktemp -p %(cluster_tmpdir)s`;
@@ -552,7 +553,6 @@ def generateSalmonIndex(infile, outfile):
             -k %(salmon_index_k)s
             &> %(outfile)s '''
     P.run(statement)
-
 
 
 # ########################################################################### #
@@ -1012,7 +1012,6 @@ def salmon(infiles, outfile):
 
     else:
         reads_one = [reads_one]
-
 
     if PAIRED:
         reads_two = [x[:-len(".1.gz")] + ".2.gz" for x in reads_one]
