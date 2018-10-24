@@ -521,16 +521,20 @@ def checkContigs(infiles, outfile):
 # #################### Generate salmon index ################################ #
 # ########################################################################### #
 
+SALMON_INDEX_NAME = ".".join([os.path.basename(QUANTITATION_GTF[:-len(".gtf.gz")]),
+                           PARAMS["salmon_index_type"],
+                           str(PARAMS["salmon_index_k"])])
+SALMON_INDEX = os.path.join("annotations.dir", SALMON_INDEX_NAME)
+
 @active_if(PARAMS["input_type"] == "fastq")
 @follows(mkdir("annotations.dir"), checkContigs)
 @files(QUANTITATION_GTF,
               "annotations.dir/salmon_build.log")
 def generateSalmonIndex(infile, outfile):
 
-    genome_fasta = os.path.join(PARAMS["annotations_genome_dir"], PARAMS["annotations_genome_fasta"])
-    out_dir = os.path.dirname(outfile)
-    index_name = ".".join([os.path.basename(infile[:-len(".gtf.gz")]), PARAMS["salmon_index_type"], str(PARAMS["salmon_index_k"])])
-    index_folder = os.path.join(out_dir, index_name)
+    genome_fasta = os.path.join(PARAMS["annotations_genome_dir"],
+                                PARAMS["annotations_genome_fasta"])
+    index_folder = SALMON_INDEX
 
     job_memory = PARAMS["salmon_index_memory"]
     statement = '''fasta_out=`mktemp -p %(cluster_tmpdir)s`;
@@ -989,17 +993,18 @@ def loadFeaturecountsTables(infile, outfile):
 # ---------------------- Salmon TPM calculation ----------------------------- #
 
 @active_if(fastqMode)
-@follows(mkdir("salmon.dir"))
+@follows(mkdir("salmon.dir"), generateSalmonIndex)
 @transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
            regex(r".*/(.*).fastq.*.gz"),
-           add_inputs(TX2GENE,generateSalmonIndex),
+           add_inputs(TX2GENE),
            r"salmon.dir/\1.log")
 def salmon(infiles, outfile):
     '''
     Per sample quantitation using salmon.
     '''
 
-    reads_one, tx2gene, salmon_index = infiles
+    reads_one, tx2gene = infiles
+    salmon_index = SALMON_INDEX
     outname = outfile[:-len(".log")]
 
     if os.path.isdir(reads_one):
