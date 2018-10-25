@@ -201,8 +201,9 @@ salmon:
     # recommended k is 31
     index_k: 31
     index_memory: 10000M
-    # --keepDuplicates can set here or not
-    index_options:
+    # By default, we keep the duplicate transcripts
+    # when generating a salmon index
+    index_options: --keepDuplicates
 
     # The source of mappings between transcript_id and gene_id
     # (1) "ensembl" to use the annotations_ensembl_dataset above (recommended)
