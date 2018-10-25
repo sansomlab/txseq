@@ -116,6 +116,9 @@ annotations:
     # location of the plain genome sequence
     genome_dir: /gfs/mirror/ensembl/genomes/plain
 
+    # genome fasta file located in genome_dir
+    genome_fasta: GRCm38.fasta
+
     # Either "ensembl" or "ucsc"
     # !! used to sanity check contig names in
     # the plain genone, geneset, and Hisat2 index !!
@@ -193,7 +196,14 @@ salmon:
     #
     # human: /gfs/mirror/ensembl/genomes/salmon/GRCh38.91.quasi.31/
     # mouse: /gfs/mirror/ensembl/genomes/salmon/GRCm38.91.quasi.31/
-    index: /gfs/mirror/ensembl/genomes/salmon/GRCm38.91.quasi.31/
+    # index: /gfs/mirror/ensembl/genomes/salmon/GRCm38.91.quasi.31/
+    index_type: quasi
+    # recommended k is 31
+    index_k: 31
+    index_memory: 10000M
+    # By default, we keep the duplicate transcripts
+    # when generating a salmon index
+    index_options: --keepDuplicates
 
     # The source of mappings between transcript_id and gene_id
     # (1) "ensembl" to use the annotations_ensembl_dataset above (recommended)

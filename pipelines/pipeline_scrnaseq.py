@@ -334,11 +334,6 @@ if ENSEMBL_VERSION not in PARAMS["annotations_ensembl_geneset"]:
                      " given ensembl version number")
 
 if (PARAMS["annotations_geneset"] == "ensembl" and
-        ENSEMBL_VERSION not in PARAMS["salmon_index"]):
-    raise ValueError("salmon index does not contain the"
-                     " given ensembl version number")
-
-if (PARAMS["annotations_geneset"] == "ensembl" and
         ENSEMBL_VERSION not in PARAMS["hisat_index"]):
     raise ValueError("hisat index does not contain the"
                      " given ensembl version number")
@@ -347,10 +342,6 @@ if (PARAMS["annotations_geneset"] == "ensembl" and
 # genome name
 
 GENOME_NAME = PARAMS["annotations_genome"]
-
-if GENOME_NAME not in PARAMS["salmon_index"]:
-    raise ValueError("salmon index does not contain the"
-                     " given genome name")
 
 if GENOME_NAME not in PARAMS["hisat_index"]:
     raise ValueError("hisat_index does not contain the"
@@ -516,6 +507,44 @@ def checkContigs(infiles, outfile):
 
 
 # ---------------------- < specific pipeline tasks > ------------------------ #
+
+# ########################################################################### #
+# #################### Generate salmon index ################################ #
+# ########################################################################### #
+
+SALMON_INDEX_NAME = ".".join(
+    [os.path.basename(QUANTITATION_GTF[:-len(".gtf.gz")]),
+     PARAMS["salmon_index_type"],
+     str(PARAMS["salmon_index_k"])])
+SALMON_INDEX = os.path.join("annotations.dir", SALMON_INDEX_NAME)
+
+
+@active_if(PARAMS["input_type"] == "fastq")
+@follows(mkdir("annotations.dir"), checkContigs)
+@files(QUANTITATION_GTF,
+       "annotations.dir/salmon_build.log")
+def generateSalmonIndex(infile, outfile):
+    '''Generate salmon index from annotation gtf. '''
+    genome_fasta = os.path.join(PARAMS["annotations_genome_dir"],
+                                PARAMS["annotations_genome_fasta"])
+    index_folder = SALMON_INDEX
+    job_memory = PARAMS["salmon_index_memory"]
+    statement = '''fasta_out=`mktemp -p %(cluster_tmpdir)s`;
+            gtf=`mktemp -p %(cluster_tmpdir)s`;
+            zcat %(infile)s > $gtf ;
+             gffread
+            -w $fasta_out
+            -g %(genome_fasta)s
+            $gtf ;
+            salmon index
+            -t $fasta_out
+            -i %(index_folder)s
+            %(salmon_index_options)s
+            --type %(salmon_index_type)s
+            -k %(salmon_index_k)s
+            &> %(outfile)s '''
+    P.run(statement)
+
 
 # ########################################################################### #
 # #################### (1) Read Mapping (optional) ########################## #
@@ -955,7 +984,7 @@ def loadFeaturecountsTables(infile, outfile):
 # ---------------------- Salmon TPM calculation ----------------------------- #
 
 @active_if(fastqMode)
-@follows(mkdir("salmon.dir"))
+@follows(mkdir("salmon.dir"), generateSalmonIndex)
 @transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
            regex(r".*/(.*).fastq.*.gz"),
            add_inputs(TX2GENE),
@@ -966,6 +995,7 @@ def salmon(infiles, outfile):
     '''
 
     reads_one, tx2gene = infiles
+    salmon_index = SALMON_INDEX
     outname = outfile[:-len(".log")]
 
     if os.path.isdir(reads_one):
@@ -973,8 +1003,6 @@ def salmon(infiles, outfile):
 
     else:
         reads_one = [reads_one]
-
-    salmon_index = PARAMS["salmon_index"]
 
     if PAIRED:
         reads_two = [x[:-len(".1.gz")] + ".2.gz" for x in reads_one]
