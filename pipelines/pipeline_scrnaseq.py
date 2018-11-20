@@ -89,8 +89,8 @@ Input files
 
 - where there are multiple Fastq file per sample, the per-sample fastqs
   should be placed in directories which end with the pattern:
-  (i) ".1.gz" - for paired end data
-  (ii) ".gz" - for single end data
+  (i) ".fastq.1.gz" - for paired end data
+  (ii) ".fastq.gz" - for single end data
 
 * BAMs
 
