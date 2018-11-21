@@ -1463,6 +1463,8 @@ def loadThreePrimeBias(infiles, outfile):
 
 # ----------------- Picard: EstimateLibraryComplexity ----------------------- #
 
+
+@active_if(PAIRED)
 @follows(mkdir("qc.dir/library.complexity.dir/"))
 @transform(collectBAMs,
            regex(r".*/(.*).bam"),
