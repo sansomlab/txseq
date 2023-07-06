@@ -1,0 +1,8 @@
+README.md
+setup.py
+txseq.egg-info/PKG-INFO
+txseq.egg-info/SOURCES.txt
+txseq.egg-info/dependency_links.txt
+txseq.egg-info/entry_points.txt
+txseq.egg-info/not-zip-safe
+txseq.egg-info/top_level.txt

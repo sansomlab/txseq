@@ -1,0 +1,25 @@
+# Pipeline pipeline_fastqc.py configuration file
+# ================================================
+#
+
+sample_table: 
+library_table: 
+
+# General options
+# ---------------
+
+# Path to file with contaminants for fastqc
+# if not supplied Fastqc use a default list of 
+# contaminants (i.e. it is not normally necessary to specify
+# this option)
+# values: "default" or a path to a file with a custom
+# adaptor list
+contaminants: default
+
+# Path to file with adaptors for fastqc
+# if not supplied Fastqc use a default list of 
+# adaptors (i.e. it is not normally necessary to specify
+# this option)
+# values: "default" or a path to a file with a custom 
+# adaptor list
+adaptors: default
