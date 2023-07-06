@@ -248,7 +248,7 @@ def loadFastQC(infile, outfile):
     if n > 0:
         P.load(infile, outfile, options="--add-index=track")
     else:
-        table_name = infile.replace(".tsv.gz", "")
+        table_name = os.path.basename(infile).replace(".tsv.gz", "")
         database_sql = P.get_params()["database"]["url"]
         database_name = os.path.basename(database_sql)
         statement = """sqlite3 %(database_name)s
