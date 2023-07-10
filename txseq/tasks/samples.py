@@ -91,7 +91,7 @@ class sample():
         elif self.type.lower() == "se":
             self.paired = False
             
-            for x in [x.strip() for x in self.fastq]:
+            for x in [x.strip() for x in self.fastq["read1"]]:
                 if not os.path.exists(x):
                     raise ValueError("Fastq file : " + x + " does not "
                                         "exist")
@@ -101,9 +101,7 @@ class sample():
                              "either 'SE' or 'PE'")
 
         # set options based on strandedness
-        self.strand = str(self.strand.lower())
-        
-        
+        self.strand = str(self.strand.lower())        
         
         if self.strand not in ("none", "forward", "reverse"):
             raise ValueError("Strand not recognised")
@@ -135,7 +133,7 @@ class sample():
             self.picard_strand = "SECOND_READ_TRANSCRIPTION_STRAND"
 
         if self.paired:
-            self.salmon_libtype = "I" + self.almon_strand
+            self.salmon_libtype = "I" + self.salmon_strand
         else:
             self.salmon_libtype = self.salmon_strand
 
@@ -189,23 +187,32 @@ class samples():
         
         check_cols(library_table, lt_req_cols, "libraries.tsv")
         
-        library_table["seq_id"] = library_table[["sample_id","lane","flow_cell"
+        # construct a unique "seq_id" for each fastq file.
+        library_table["end"] = 'R1'        
+        library_table["seq_id"] = library_table[["sample_id","flow_cell","lane","end"
                                                  ]].astype(str).T.apply(
                                                 lambda c: c.str.cat(sep='_'))
         
-        libs = library_table.to_dict(orient='index')        
-        fastqs = {}
+        fastqs = library_table.copy(deep=True)
+        fastqs.index = fastqs["seq_id"]
+        fastqs = fastqs.to_dict(orient='index')
         
-        for idx, entry in libs.items():
+                # set up fastq attribute
+        # when data is SE, 'read2' will not be used
+              
+        for seq_id, entry in fastqs.items():
         
-            fqp = libs[idx]["fastq_path"]
-            sid = libs[idx]["sample_id"]
+            fqp = fastqs[seq_id]["fastq_path"]
+            sid = fastqs[seq_id]["sample_id"]
             
             paired = True if samples[sid]["type"] == "PE" else False    
             
             if not os.path.exists(fqp):
                 raise ValueError("fastq_path for sample '" + sid +"' does not "
                                  "exist: " + fqp)
+        
+            if not "fastq" in samples[sid].keys():
+                samples[sid]["fastq"] = {'read1':[], 'read2':[]}
                               
             if paired:
             
@@ -220,22 +227,20 @@ class samples():
                                      "The following suffixes are supported: " 
                                      "1.fastq.gz, 1.fq.gz, fastq.1.gz, fq.1.gz")
                 
-                if not "fastqs" in samples[sid].keys():
-                    samples[sid]["fastq"]={"read1": [fqp], "read2": [r2p]}
-                else:
-                    samples[sid]["fastq"]["read1"].append(fqp)
-                    samples[sid]["fastq"]["read2"].append(r2p)
+                # add the fastq paths to the sample objects
+                samples[sid]["fastq"]["read1"].append(fqp)
+                samples[sid]["fastq"]["read2"].append(r2p)
                     
-                fastqs[libs[idx]["seq_id"] + "_R1"] = fqp
-                fastqs[libs[idx]["seq_id"] + "_R2"] = r2p
-            
-            else:
-                if not "fastqs" in samples[sid].keys():
-                    samples[sid]["fastq"] = [fqp]
-                else:
-                    samples[sid]["fastq"].append(fqp)
+                # add the read 2 fastq entries to the fastq dictionary
+                r2_seq_id = seq_id.replace("_R1", "_R2")
+                r2_entry = copy.deepcopy(entry)
+                r2_entry["seq_id"] = r2_seq_id
+                r2_entry["fastq_path"] = r2p
+                fastqs[r2_seq_id] = r2_entry
                 
-                fastqs[libs[idx]["seq_id"]] = fqp
+            else:
+                
+                samples[sid]["fastq"]["read1"].append(fqp)
         
         
         self.samples = {}
@@ -244,7 +249,8 @@ class samples():
         
         self.sample_table = sample_table
         self.library_table = library_table
-        self.libs = libs
-        self.fastqs = fastqs
 
+        self.fastqs = copy.deepcopy(fastqs)
+        self.fastq_table = pd.DataFrame.from_dict(fastqs, 
+                                                  orient='index')
 

@@ -2,6 +2,9 @@
 # ================================================
 #
 
+database:
+    file: csvdb
+
 sample_table: 
 library_table: 
 

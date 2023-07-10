@@ -37,11 +37,14 @@ Input files
 
 The following input tables are required.
 
-(1) A "samples.tsv" table with the following mandatory columns:
+(1) "samples.tsv"
+^^^^^^^^^^^^^^^^^
+
+A table with the following mandatory columns:
 
 * "sample_id": a unique identifier for the sample
 * "type": either 'SE' for single end or 'PE' for paired end
-* "strand": either 'none', 'forward' or 'reverse'
+* "strand": either 'none', 'forward' or 'reverse' (see note below).
 
 Sample metadata can also be stored in this table for downstream analysis for 
 example with columns such as:
@@ -52,8 +55,37 @@ example with columns such as:
 * "genotype"
 * "batch"
 
-  
-(2) A "libraries.tsv" table with the following mandatory columns
+.. note:: strand values of 'none', 'forward' and 'reverse' will be used to set parameter values in txseq pipelines as follows:
+
+  * "none":  data is treated as unstranded. This is appropriate for e.g. Illumina Truseq and most single-cell protocols. :
+
+    * hisat: default, i.e. --rna-strandedness not set
+    * cufflinks: fr-secondstrand
+    * HT-seq: no
+    * PICARD: NONE
+    * SALMON: (I)U
+
+  * "forward": The first read (if paired) or read (if single end) corresponds to the transcript strand e.g. Directional Illumina, Standard Solid.
+
+    * hisat: SE: F, PE: FR
+    * cufflinks: fr-secondstrand
+    * HT-seq: yes
+    * PICARD: FIRST_READ_TRANSCRIPTION_STRAND
+    * SALMON: (I)SF
+    
+  * "reverse": The first read (if paired) or read (if single end) corresponds to the reverse complement of the  transcript strand e.g. dUTP, NSR, NNSR
+
+    * hisat: SE: R, PE: RF
+    * cufflinks: fr-firststrand
+    * HT-seq: reverse
+    * PICARD: SECOND_READ_TRANSCRIPTION_STRAND
+    * SALMON: (I)SR
+
+
+(2) "libraries.tsv" 
+^^^^^^^^^^^^^^^^^^^
+
+A table with the following mandatory columns
 
 * "sample_id": these values must match those in the sample_id in the samples.tsv
 * "lane": an integer representing the sequencing lane/unit. 
@@ -61,22 +93,10 @@ example with columns such as:
 * "fastq_path": For SE libraries, the fastq file path. For PE libraries: the 
    read 1 fastq: the path for read 2 is imputed by the pipelines.
 
-Note: When samples have been sequenced across multiple lanes, use one line
-per lane. Comma-separated lane and fastq_path values are not supported. Quality
-control analysis is performed at lane level; lanes will be aggregated for
-quantitation.
+.. Note:: When samples have been sequenced across multiple lanes, use one line per lane. Comma-separated lane and fastq_path values are not supported. Quality control analysis is performed at lane level; lanes will be aggregated for quantitation.
 
-Note: Paired-end fastq files must end with "1|2.fastq.gz" or "fastq.1|2.gz".
-For paired end samples the Read 1 and Read 2 FASTQ files for the same lane 
-must be located in the same folder.
+.. Note:: Paired-end fastq files must end with "1|2.fastq.gz" or "fastq.1|2.gz". For paired end samples the Read 1 and Read 2 FASTQ files for the same lane must be located in the same folder.
 
-The "read_1" and "read_2" columns in the sample.tsv files should contain 
-the names of links present in the fastq.dir/.
-
-If samples are sequenced over multiple lanes, simply add additional lines to the sample.tsv file: 
-sequencing data will be aggregated by sample_id
-
-The sample.tsv can contain arbitrary fields of sample metadata for use downstream.
 
 
 Requirements
@@ -119,6 +139,7 @@ import sqlite3
 
 import pandas as pd
 import numpy as np
+import sqlalchemy
 
 from cgatcore import experiment as E
 from cgatcore import pipeline as P
@@ -130,7 +151,7 @@ import txseq.tasks as T
 import txseq.tasks.samples as samples
 import txseq.tasks.readqc as readqc
 
-# -------------------------- Pipeline Configuration -------------------------- #
+# ----------------------- < pipeline configuration > ------------------------ #
 
 # Override function to collect config files
 P.control.write_config_files = T.write_config_files
@@ -141,13 +162,6 @@ PARAMS = P.get_parameters(T.get_parameter_file(__file__))
 
 # set the location of the code directory
 PARAMS["txseq_code_dir"] = Path(__file__).parents[1]
-
-# ----------------------- < pipeline configuration > ------------------------ #
-
-# if len(sys.argv) > 1:
-#     if(sys.argv[1] == "config") and __name__ == "__main__":
-#         sys.exit(P.main(sys.argv))
-
 
 if len(sys.argv) > 1:
     if(sys.argv[1] == "make"):
@@ -178,7 +192,7 @@ def fastqc(infile, outfile):
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
-    fastq_path = S.fastqs[seq_id]
+    fastq_path = S.fastqs[seq_id]['fastq_path']
     
     if PARAMS["contaminants"] != "default":
         contaminants = "-c " + PARAMS["contaminants"]
@@ -260,11 +274,36 @@ def loadFastQC(infile, outfile):
 
         P.run(statement)
 
+@files(None, "fastqc.dir/load.metadata.sentinel")
+def loadMetadata(infile, outfile):
+    '''load the sample and fastq table into the database'''
+    
+    db =sqlalchemy.create_engine('sqlite:///' + PARAMS["database_file"])
+
+    S.sample_table.to_sql(name = 'samples',
+                          con= db, 
+                          index= False, 
+                          if_exists='replace') 
+    
+    from sqlalchemy import text
+
+    db.execute("CREATE INDEX samples_sample_id on samples (sample_id)")
+    
+    S.fastq_table.to_sql(name = 'fastqs',
+                         con= db, 
+                         index=False, 
+                         if_exists='replace') 
+
+    db.execute("CREATE INDEX fastqs_fastq_id on fastqs (sample_id)")
+    
+    db.dispose()
+
+    IOTools.touch_file(outfile)
 
 # --------------------- < generic pipeline tasks > -------------------------- #
 
 
-@follows(fastqc)
+@follows(fastqc, loadFastQC, loadMetadata)
 def full():
     pass
 

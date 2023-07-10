@@ -17,6 +17,7 @@ import glob
 import collections
 from io import StringIO
 import pandas as pd
+from pathlib import Path
 from cgatcore import pipeline as P
 import cgatcore.iotools as iotools
 import cgatcore.csv2db as csv2db
@@ -264,11 +265,13 @@ def read_fastqc(infiles):
     dfs, tracks = collections.defaultdict(list), []
     for infile in infiles:
         track = fastqc_filename2track(infile)
+        sample_id = Path(infile).parts[-3]
         tracks.append(track)
         with iotools.open_file(infile) as inf:
             for name, status, header, data in FastqcSectionIterator(inf):
                 records = (x.split("\t") for x in data)
                 df = pd.DataFrame.from_records(records, columns=header.split("\t"))
+                df["sample_id"] = sample_id
                 dfs[name].append(df)
 
     result = {}
