@@ -1,0 +1,82 @@
+# Pipeline pipeline_salmon.py configuration file
+# ===============================================
+#
+
+# location of the local sqlite3 database
+database:
+    file: csvdb
+
+# path to the sample table
+sample_table: 
+
+# path to the library table
+library_table:
+
+
+
+# Salmon quasi-mapping options
+# ---------------
+quant:
+
+    # the location of the salmon index
+    # human e.g. /well/kir/projects/mirror/genomes/salmon/gencode.grch38.v43/salmon_index/
+    index: 
+
+    # the location of a gtf for mapping transcripts to
+    # genes. Will be passed to the "salmon quant -g" 
+    gtf: /well/kir/mirror/gencode/human/gencode.v43.annotation.gtf.gz
+
+    # The source of mappings between transcript_id and gene_id
+    # (1) "ensembl" to use the annotations_ensembl_dataset above (recommended)
+    # or (2) a path to a headerless TAB-delimited file mapping transcript_id and gene_id, respectively.
+    tx2gene: ensembl
+
+    # Use of the following is recommended:
+    # --seqBias --gcBias --validateMapping --rangeFactorizationBins 4
+    #
+    # see: https://salmon.readthedocs.io/en/latest/salmon.html# for details
+    #                            
+                                
+    options: --seqBias --gcBias --validateMapping --rangeFactorizationBins 4
+    
+    resources_memory: 12G
+    resources_threads: 4
+
+# Spike-in options
+# ----------------
+spikein:
+    # Whether spike-ins are present in the samples (True|False)
+    # Note that the following options are ignored if "present: False"
+    present: False
+
+    # A pattern by which to recognise the spike-in contigs
+    # e.g. "ERCC" or "SIRV"
+    pattern: ERCC
+
+    # Location of GTF file that describes the spike-ins
+    geneset: /gfs/mirror/ercc92/ERCC92.gtf
+
+    # Location of a transcript-to-gene mapping file for spike-ins
+    # (headerless, tab-delimited, two columns: "transcript_id", "gene_id")
+    tx2gene: /gfs/mirror/ercc92/ERCC92.tx2gene.txt
+
+    # Whether to estimate copy numbers (True|False)
+    estimate_copy_numbers: False
+
+    # Location of a file containing information about the spike ins
+    # (tab-delimited, containing the columns: "gene_id" and "copies_per_cell")
+    copy_numbers: /gfs/mirror/ercc92/old/ercc.txt
+
+
+
+
+
+
+
+
+# SQL database options
+# ---------------
+sql:
+
+    # RAM required for high memory operations (e.g. 5000M)
+    himem: 10000M

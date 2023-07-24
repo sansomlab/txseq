@@ -1,0 +1,16 @@
+# Pipeline pipeline_arcashla.py configuration file
+# ===============================================
+#
+
+# location of bam files
+bam_path: /gpfs3/well/sansom/users/rrl815/work/00_test/test_arcashla/test_bulk_pipeline/bam_file_folder 
+
+# paired or single
+single: False
+
+# Extract Options
+# ---------------
+extract:
+    # use --unmapped to include unmapped reads
+    option: --unmapped
+
