@@ -24,6 +24,6 @@ Pipeline specific components:
 
 # import core submodules into top-level namespace
 
-from cellhub.tasks.setup import *
-from cellhub.tasks.parameters import *
-from cellhub.tasks.api import *
+from txseq.tasks.setup import *
+from txseq.tasks.parameters import *
+from txseq.tasks.api import *

@@ -149,6 +149,7 @@ class setup():
         if outfile.endswith(".sentinel"):
         
             self.log_file = outfile.replace(".sentinel", ".log")
+            self.out_file = outfile.replace(".sentinel", "")
         
         if expose_var:
             self.var = self.__dict__

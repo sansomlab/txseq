@@ -1,0 +1,23 @@
+# Pipeline pipeline_index.py configuration file
+# ===============================================
+#
+
+# see: http://daehwankimlab.github.io/hisat2/howto/#build-hgfm-index-with-transcripts
+# this pipeline will build a HGFM index with transcripts
+#
+# The ensembl primary assembly
+primary_assembly: /well/kir/projects/mirror/ensembl/GRCh38.110.dir/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
+
+# The ensembl GTF genset
+geneset: /well/kir/projects/mirror/ensembl/GRCh38.110.dir/Homo_sapiens.GRCh38.110.gtf.gz
+
+
+KkmerLen: 31
+
+  
+resources:
+  
+  # resource allocation
+  memory: 200G
+  threads: 16
+
