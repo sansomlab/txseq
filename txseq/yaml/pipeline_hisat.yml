@@ -12,7 +12,6 @@ sample_table:
 # path to the library table
 library_table:
 
-
 # Hisat options
 # -------------
 align:

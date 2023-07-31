@@ -137,20 +137,6 @@ if len(sys.argv) > 1:
 # ################ (1) Quantitation of gene expression #################### #
 # ########################################################################### #
 
-# if PAIRED:
-#         fastq_pattern = "*.fastq.1.gz"
-# else:
-#         fastq_pattern = "*.fastq.gz"
-
-# if STRAND != "none":
-#     HISAT_STRAND_PARAM = "--rna-strandness %s" % HISAT_STRAND
-# else:
-#     HISAT_STRAND_PARAM = ""
-
-# HISAT_THREADS = PARAMS["hisat_threads"]
-# HISAT_MEMORY = str(int(PARAMS["hisat_total_mb_memory"]) //
-#                    int(HISAT_THREADS)) + "M"
-
 
 def hisat_first_pass_jobs():
 
@@ -161,10 +147,6 @@ def hisat_first_pass_jobs():
                             sample_id + ".sentinel"
         )])
 
-#@transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
-#           regex(r".*/(.*).fastq.*.gz"),
-#           r"hisat.dir/first.pass.dir/\1.novel.splice.sites.txt.gz")
-
 @files(hisat_first_pass_jobs)
 def firstPass(infile, sentinel):
     '''
@@ -174,8 +156,10 @@ def firstPass(infile, sentinel):
     t = T.setup(infile, sentinel, PARAMS,
                 memory=PARAMS["align_resources_memory"],
                 cpu=PARAMS["align_resources_threads"])
+    
+    sample_id = os.path.basename(sentinel)[:-len(".sentinel")]
 
-    sample = S.samples[os.path.basename(sentinel)[:-len(".sentinel")]]
+    sample = S.samples[sample_id]
 
     if sample.paired:
         fastq_input = "-1 " + ",".join(sample.fastq["read1"]) +\
@@ -192,7 +176,8 @@ def firstPass(infile, sentinel):
     
         known_ss = "--known-splicesite-infile=" + ss_file        
     
-    novel_ss_outfile = t.outname + ".novel.splice.sites.txt"
+    novel_ss_outfile = os.path.join(t.outdir,
+                                    sample_id + ".novel.splice.sites.txt")
 
     if sample.strand != "none":
         strand_param = "--rna-strandness %s" % sample.hisat_strand
@@ -216,23 +201,32 @@ def firstPass(infile, sentinel):
     IOTools.touch_file(sentinel) 
 
 
-
-@follows(mkdir("annotations.dir"))
-@merge(firstPass, "annotations.dir/novel.splice.sites.hisat.txt")
-def novelHisatSpliceSites(infiles, outfile):
+@merge(firstPass, 
+       "hisat.dir/annotations/novel.splice.sites.sentinel")
+def novelSpliceSites(infiles, sentinel):
     '''
     Collect the novel splice sites into a single file.
-    '''
+'''
+    t = T.setup(infiles[0], sentinel, PARAMS,
+            memory="4G", cpu=1)
 
-    junction_files = " ".join(infiles)
+    junction_files = " ".join([x.replace(".sentinel",".novel.splice.sites.txt.gz") 
+                               for x in infiles])
 
-    statement = '''zcat %(junction_files)s
-                   | sort -k1,1 -T %(cluster_tmpdir)s
+    out_path = sentinel.replace(".sentinel",".txt")
+
+    # sort -k1,1 -T %(cluster_tmpdir)s
+    statement = '''mkdir -p tmp.dir;
+                   sort_dir=`mktemp -d -p tmp.dir`;
+                   zcat %(junction_files)s
+                   | sort -k1,1 -T $sort_dir
                    | uniq
-                   > %(outfile)s
+                   > %(out_path)s;
+                   rm -rf $sort_dir
                 '''
-
+                
     P.run(statement)
+    IOTools.touch_file(sentinel) 
 
 
 def hisat_second_pass_jobs():
@@ -243,55 +237,65 @@ def hisat_second_pass_jobs():
                os.path.join("hisat.dir",
                             sample_id + ".sentinel")])
 
-# @transform(glob.glob(os.path.join(PARAMS["input_dir"], fastq_pattern)),
-#            regex(r".*/(.*).fastq.*.gz"),
-#            add_inputs(novelHisatSpliceSites),
-#            r"hisat.dir/\1.bam"
-#            )
-@follows(novelHisatSpliceSites)
+@follows(novelSpliceSites)
 @files(hisat_second_pass_jobs)
-def secondPass(infiles, outfile):
+def secondPass(infile, sentinel):
     '''
     Align reads using HISAT with known and novel junctions.
     '''
 
-    reads_one, novel_splice_sites = infiles
+    t = T.setup(infile, sentinel, PARAMS,
+                memory=PARAMS["align_resources_memory"],
+                cpu=PARAMS["align_resources_threads"])
+    
+    sample_id = os.path.basename(sentinel)[:-len(".sentinel")]
 
-    if os.path.isdir(reads_one):
-        reads_one = glob.glob(os.path.join(reads_one, fastq_pattern))
+    sample = S.samples[sample_id]
+
+    if sample.paired:
+        fastq_input = "-1 " + ",".join(sample.fastq["read1"]) +\
+                      " -2 " + ",".join(sample.fastq["read2"])
+
     else:
-        reads_one = [reads_one]
+        fastq_input = "-U " + ",".join(sample.fastq["read1"])
 
-    index = PARAMS["hisat_index"]
-    log = outfile + ".log"
+    novel_splice_sites = "hisat.dir/annotation/novel.splice.sites.txt"
 
-
-    if PAIRED:
-        reads_two = [x[:-len(".1.gz")] + ".2.gz" for x in reads_one]
-        fastq_input = "-1 " + ",".join(reads_one) +\
-                      " -2 " + ",".join(reads_two)
+    if sample.strand != "none":
+        strand_param = "--rna-strandness %s" % sample.hisat_strand
     else:
-        fastq_input = "-U " + ",".join(reads_one)
+        strand_param = ""
+        
+    outfile = sentinel.replace(".sentinel",".bam")
 
-    hisat_strand_param = HISAT_STRAND_PARAM
-
-    statement = '''sort_sam=`mktemp -p %(cluster_tmpdir)s`;
-                   %(hisat_executable)s
-                      -x %(index)s
+    statement = '''mkdir -p tmp.dir;
+                   sort_dir=`mktemp -d -p tmp.dir`;
+                   hisat2
+                      -x %(align_index)s
                       %(fastq_input)s
-                      --threads %(job_threads)s
+                      --threads %(align_resources_threads)s
                       --novel-splicesite-infile %(novel_splice_sites)s
-                      %(hisat_strand_param)s
-                      %(hisat_options)s
-                   2> %(log)s
+                      %(strand_param)s
+                      %(align_options)s
+                   2> %(log_file)s
                    | samtools view - -bS
-                   | samtools sort - -T $sort_sam -o %(outfile)s >>%(log)s;
+                   | samtools sort - -T $sort_dir -o %(outfile)s >>%(log_file)s;
                    samtools index %(outfile)s;
-                   rm $sort_sam;
-                 '''
+                   rm -rf $sort_dir;
+                 ''' % dict(PARAMS, **t.var, **locals())
 
     P.run(statement)
+    IOTools.touch_file(sentinel) 
 
+@follows(secondPass, mkdir("api.dir/hisat.dir"))
+@files(glob.glob("hisat.dir/*.bam*"),"hisat.dir/api.sentinel")
+def api(infiles, sentinel):
+
+    for infile in infiles:
+        os.symlink(os.path.join("..","..",infile), 
+                   os.path.join("api.dir", infile))
+        
+    IOTools.touch_file(sentinel)
 
 # --------------------- < generic pipeline tasks > -------------------------- #
 
