@@ -92,22 +92,19 @@ PARAMS = P.get_parameters(T.get_parameter_file(__file__))
 # set the location of the code directory
 PARAMS["txseq_code_dir"] = Path(__file__).parents[1]
 
+PAIRED = False
 
 if len(sys.argv) > 1:
     if(sys.argv[1] == "make"):
         S = samples.samples(sample_tsv = PARAMS["sample_table"],
                             library_tsv = None)
 
+        if S.npaired > 0: PAIRED = True
+
+
 # ---------------------- < specific pipeline tasks > ------------------------ #
 
-
-# ########################################################################### #
-# ################ (2) Quantitation of gene expression #################### #
-# ########################################################################### #
-
 # ------------------------- Geneset Definition ------------------------------ #
-
-
 
 @follows(mkdir("annotations.dir"))
 @files(PARAMS["geneset"],
@@ -142,21 +139,28 @@ def flatGeneset(infile, sentinel):
 
 # ------------------- Picard: CollectRnaSeqMetrics -------------------------- #
 
-@transform(glob.glob("api/bams/*.bam"),
-           regex(r".*/(.*).bam"),
-           add_inputs(flatGeneset),
-           r"bam.qc.dir/rnaseq.metrics.dir/\1.rnaseq.metrics.sentinel")
-def collectRnaSeqMetrics(infiles, sentinel):
+
+def collect_rna_seq_metrics_jobs():
+
+    for sample_id in S.samples.keys():
+    
+        yield([os.path.join("api", "bam", sample_id + ".bam"),
+                os.path.join("bam.qc.dir/rnaseq.metrics.dir/",
+                            sample_id + ".rnaseq.metrics.sentinel")])
+
+@follows(flatGeneset)
+@files(collect_rna_seq_metrics_jobs)
+def collectRnaSeqMetrics(infile, sentinel):
     '''
     Run Picard CollectRnaSeqMetrics on the bam files.
     '''
 
-    t = T.setup(infiles[0], sentinel, PARAMS,
+    t = T.setup(infile], sentinel, PARAMS,
             memory=PARAMS["picard_memory"],
             cpu=PARAMS["picard_threads"])
 
-    bam_file, geneset_flat = infiles
-    geneset_flat = geneset_flat.replace(".sentinel", ".gz")
+    bam_file = infile
+    geneset_flat = "annotations.dir/geneset.flat.gz"
     
     sample_id = os.path.basename(bam_file)[:-len(".bam")]
     sample = S.samples[sample_id]
@@ -175,12 +179,12 @@ def collectRnaSeqMetrics(infiles, sentinel):
 
     statement = '''picard_out=`mktemp -p tmp.dir`;
                    %(picard_cmd)s CollectRnaSeqMetrics
-                   I=%(bam_file)s
-                   REF_FLAT=%(geneset_flat)s
-                   O=$picard_out
-                   CHART=%(chart_out)s
-                   STRAND_SPECIFICITY=%(picard_strand)s
-                   VALIDATION_STRINGENCY=%(validation_stringency)s
+                   -I %(bam_file)s
+                   -REF_FLAT %(geneset_flat)s
+                   -O $picard_out
+                   -CHART %(chart_out)s
+                   -STRAND_SPECIFICITY %(picard_strand)s
+                   -VALIDATION_STRINGENCY %(validation_stringency)s
                    %(picard_options)s;
                    grep . $picard_out | grep -v "#" | head -n2
                    > %(out_file)s;
@@ -201,6 +205,8 @@ def loadCollectRnaSeqMetrics(infiles, outfile):
     '''
     Load the metrics to the db.
     '''
+    
+    infiles = [x.replace(".sentinel", "") for x in infiles]
 
     P.concatenate_and_load(infiles, outfile,
                            regex_filename=".*/.*/(.*).rnaseq.metrics",
@@ -211,13 +217,15 @@ def loadCollectRnaSeqMetrics(infiles, outfile):
 # --------------------- Three prime bias analysis --------------------------- #
 
 @transform(collectRnaSeqMetrics,
-           suffix(".rnaseq.metrics"),
+           suffix(".rnaseq.metrics.sentinel"),
            ".three.prime.bias")
 def threePrimeBias(infile, outfile):
     '''
     Compute a sensible three prime bias metric
     from the picard coverage histogram.
     '''
+
+    infile = infile.replace(".sentinel", "")
 
     coverage_histogram = infile[:-len(".metrics")] + ".cov.hist"
 
@@ -236,7 +244,7 @@ def threePrimeBias(infile, outfile):
 
 
 @merge(threePrimeBias,
-       "qc.dir/qc_three_prime_bias.load")
+       "bam.qc.dir/qc_three_prime_bias.load")
 def loadThreePrimeBias(infiles, outfile):
     '''
     Load the metrics in the project database.
@@ -251,16 +259,23 @@ def loadThreePrimeBias(infiles, outfile):
 # ----------------- Picard: EstimateLibraryComplexity ----------------------- #
 
 
-# !!! @active_if(PAIRED)
-@follows(mkdir("qc.dir/library.complexity.dir/"))
-@transform(glob.glob("api/bams/*.bam"),
-           regex(r".*/(.*).bam"),
-           r"qc.dir/library.complexity.dir/\1.library.complexity")
-def estimateLibraryComplexity(infile, outfile):
+def estimate_library_complexity_jobs():
+
+    for sample_id in S.samples.keys():
+    
+        if  S.samples[sample_id].paired == True:
+    
+            yield([os.path.join("api", "bam", sample_id + ".bam"),
+                   os.path.join("bam.qc.dir/estimate.library.complexity.dir/",
+                                sample_id + ".library.complexity.sentinel")])
+
+@active_if(PAIRED)
+@files(estimate_library_complexity_jobs)
+def estimateLibraryComplexity(infile, sentinel):
     '''
     Run Picard EstimateLibraryComplexity on the BAM files.
-'''
-    t = T.setup(infiles[0], sentinel, PARAMS,
+    '''
+    t = T.setup(infile, sentinel, PARAMS,
         memory=PARAMS["picard_memory"],
         cpu=PARAMS["picard_threads"])
 
@@ -273,45 +288,47 @@ def estimateLibraryComplexity(infile, outfile):
 
     statement = '''picard_out=`mktemp -p tmp.dir`;
                    %(picard_cmd)s EstimateLibraryComplexity
-                   I=%(infile)s
-                   O=$picard_out
-                   VALIDATION_STRINGENCY=%(validation_stringency)s
+                   -I %(infile)s
+                   -O $picard_out
+                   -VALIDATION_STRINGENCY %(validation_stringency)s
                    %(picard_options)s;
                    grep . $picard_out | grep -v "#" | head -n2
-                   > %(outfile)s;
+                   > %(out_file)s;
                    rm $picard_out;
-                '''
+                ''' % dict(PARAMS, **t.var, **locals())
 
     P.run(statement)
+    IOTools.touch_file(sentinel)
+    
 
-
-# !!! @active_if(PAIRED)
+@active_if(PAIRED)
 @merge(estimateLibraryComplexity,
-       "qc.dir/qc_library_complexity.load")
+       "bam.qc.dir/qc_library_complexity.load")
 def loadEstimateLibraryComplexity(infiles, outfile):
     '''
     Load the complexity metrics to a single table in the project database.
     '''
 
-    if PAIRED:
-        P.concatenate_and_load(infiles, outfile,
-                               regex_filename=".*/.*/(.*).library.complexity",
-                               cat="sample_id",
-                               options='-i "sample_id"')
-    else:
-        statement = '''echo "Not compatible with SE data"
-                       > %(outfile)s'''
-        P.run(statement)
+    P.concatenate_and_load(infiles, outfile,
+                           regex_filename=".*/.*/(.*).library.complexity",
+                           cat="sample_id",
+                           options='-i "sample_id"')
+
 
 
 # ------------------- Picard: AlignmentSummaryMetrics ----------------------- #
 
-@follows(mkdir("qc.dir/alignment.summary.metrics.dir/"))
-@transform(glob.glob("api/bams/*.bam"),
-           regex(r".*/(.*).bam"),
-           (r"qc.dir/alignment.summary.metrics.dir"
-            r"/\1.alignment.summary.metrics"))
-def alignmentSummaryMetrics(infile, outfile):
+
+def alignment_summary_metrics_jobs():
+
+    for sample_id in S.samples.keys():
+    
+        yield([os.path.join("api", "bam", sample_id + ".bam"),
+                os.path.join("bam.qc.dir/alignment.summary.metrics.dir/",
+                            sample_id + ".alignment.summary.metrics.sentinel")])
+
+@files(alignment_summary_metrics_jobs)
+def alignmentSummaryMetrics(infile, sentinel):
     '''
     Run Picard AlignmentSummaryMetrics on the bam files.
     '''
@@ -323,27 +340,26 @@ def alignmentSummaryMetrics(infile, outfile):
     picard_options = PARAMS["picard_alignmentsummarymetric_options"]
     validation_stringency = PARAMS["picard_validation_stringency"]
 
-
-    reference_sequence = os.path.join(PARAMS["annotations_genome_dir"],
-                                      PARAMS["annotations_genome"] + ".fasta")
+    reference_sequence = os.path.join(PARAMS["primary_assembly"])
 
     statement = '''picard_out=`mktemp -p tmp.dir`;
                    %(picard_cmd)s CollectAlignmentSummaryMetrics
-                   I=%(infile)s
-                   O=$picard_out
-                   REFERENCE_SEQUENCE=%(reference_sequence)s
-                   VALIDATION_STRINGENCY=%(validation_stringency)s
+                   -I %(infile)s
+                   -O $picard_out
+                   -REFERENCE_SEQUENCE %(reference_sequence)s
+                   -VALIDATION_STRINGENCY %(validation_stringency)s
                    %(picard_options)s;
                    grep . $picard_out | grep -v "#"
-                   > %(outfile)s;
+                   > %(out_file)s;
                    rm $picard_out;
-                '''
+                ''' % dict(PARAMS, **t.var, **locals())
 
     P.run(statement)
+    IOTools.touch_file(sentinel)
 
 
 @merge(alignmentSummaryMetrics,
-       "qc.dir/qc_alignment_summary_metrics.load")
+       "bam.qc.dir/qc_alignment_summary_metrics.load")
 def loadAlignmentSummaryMetrics(infiles, outfile):
     '''
     Load the complexity metrics to a single table in the project database.
@@ -358,125 +374,118 @@ def loadAlignmentSummaryMetrics(infiles, outfile):
 
 # ------------------- Picard: InsertSizeMetrics ----------------------- #
 
-@follows(mkdir("qc.dir/insert.size.metrics.dir/"))
-@transform(glob.glob("api/bams/*.bam"),
-           regex(r".*/(.*).bam"),
-           [(r"qc.dir/insert.size.metrics.dir"
-             r"/\1.insert.size.metrics.summary"),
-            (r"qc.dir/insert.size.metrics.dir"
-             r"/\1.insert.size.metrics.histogram")])
-def insertSizeMetricsAndHistograms(infile, outfiles):
+def insert_size_jobs():
+
+    for sample_id in S.samples.keys():
+    
+        if  S.samples[sample_id].paired == True:
+    
+            yield([os.path.join("api", "bam", sample_id + ".bam"),
+                   [os.path.join("bam.qc.dir/insert.size.metrics.dir/",
+                                sample_id + ".insert.size.metrics.summary.sentinel"),
+                    os.path.join("bam.qc.dir/insert.size.metrics.dir/",
+                                sample_id + ".insert.size.metrics.histogram.sentinel"),
+                   ]])
+
+@active_if(PAIRED)
+@files(insert_size_jobs)
+def insertSizeMetricsAndHistograms(infile, sentinels):
     '''
     Run Picard InsertSizeMetrics on the BAM files to
     collect summary metrics and histograms.'''
 
-    t = T.setup(infiles[0], sentinel, PARAMS,
+    t = T.setup(infile, sentinel, PARAMS,
             memory=PARAMS["picard_memory"],
             cpu=PARAMS["picard_threads"])
 
-    if PAIRED:
-        picard_summary, picard_histogram = outfiles
-        picard_histogram_pdf = picard_histogram + ".pdf"
+    picard_summary, picard_histogram = [ x.replace(".sentinel", "") for x in sentinels ]
+    picard_histogram_pdf = picard_histogram + ".pdf"
 
-        if PARAMS["picard_insertsizemetric_options"]:
-            picard_options = PARAMS["picard_insertsizemetric_options"]
-        else:
-            picard_options = ""
-
-
-        validation_stringency = PARAMS["picard_validation_stringency"]
-        reference_sequence = os.path.join(PARAMS["annotations_genome_dir"],
-                                          PARAMS["annotations_genome"] +
-                                          ".fasta")
-
-        statement = '''picard_out=`mktemp -p tmp.dir`;
-                       %(picard_cmd)s CollectInsertSizeMetrics
-                       I=%(infile)s
-                       O=$picard_out
-                       HISTOGRAM_FILE=%(picard_histogram_pdf)s
-                       VALIDATION_STRINGENCY=%(validation_stringency)s
-                       REFERENCE_SEQUENCE=%(reference_sequence)s
-                       %(picard_options)s;
-                       grep "MEDIAN_INSERT_SIZE" -A 1 $picard_out
-                       > %(picard_summary)s;
-                       sed -e '1,/## HISTOGRAM/d' $picard_out
-                       > %(picard_histogram)s;
-                       rm $picard_out;
-                    '''
-
+    if PARAMS["picard_insertsizemetric_options"]:
+        picard_options = PARAMS["picard_insertsizemetric_options"]
     else:
-        picard_summary, picard_histogram = outfiles
+        picard_options = ""
 
-        statement = '''echo "Not compatible with SE data"
-                       > %(picard_summary)s;
-                       echo "Not compatible with SE data"
-                       > %(picard_histogram)s
-                    '''
+    validation_stringency = PARAMS["picard_validation_stringency"]
+    reference_sequence = os.path.join(PARAMS["primary_assembly"])
+
+    statement = '''picard_out=`mktemp -p tmp.dir`;
+                   %(picard_cmd)s CollectInsertSizeMetrics
+                   -I %(infile)s
+                   -O $picard_out
+                   -HISTOGRAM_FILE %(picard_histogram_pdf)s
+                   -VALIDATION_STRINGENCY %(validation_stringency)s
+                   -REFERENCE_SEQUENCE %(reference_sequence)s
+                   %(picard_options)s;
+                   grep "MEDIAN_INSERT_SIZE" -A 1 $picard_out
+                   > %(picard_summary)s;
+                   sed -e '1,/## HISTOGRAM/d' $picard_out
+                   > %(picard_histogram)s;
+                   rm $picard_out;
+                ''' % dict(PARAMS, **t.var, **locals())
+
     P.run(statement)
+    
+    for sentinel in sentinels: 
+        IOTools.touch_file(sentinel)
 
-
+@active_if(PAIRED)
 @merge(insertSizeMetricsAndHistograms,
-       "qc.dir/qc_insert_size_metrics.load")
+       "bam.qc.dir/qc_insert_size_metrics.load")
 def loadInsertSizeMetrics(infiles, outfile):
     '''
     Load the insert size metrics to a single table of the project database.
     '''
 
-    if PAIRED:
-        picard_summaries = [x[0] for x in infiles]
+    picard_summaries = [x[0] for x in infiles]
 
-        P.concatenate_and_load(picard_summaries, outfile,
-                               regex_filename=(".*/.*/(.*)"
-                                               ".insert.size.metrics.summary"),
-                               cat="sample_id",
-                               options='')
-
-    else:
-        statement = '''echo "Not compatible with SE data"
-                       > %(outfile)s
-                    '''
-        P.run(statement)
+    P.concatenate_and_load(picard_summaries, outfile,
+                            regex_filename=(".*/.*/(.*)"
+                                            ".insert.size.metrics.summary"),
+                            cat="sample_id",
+                            options='')
 
 
+@active_if(PAIRED)
 @merge(insertSizeMetricsAndHistograms,
-       "qc.dir/qc_insert_size_histogram.load")
+       "bam.qc.dir/qc_insert_size_histogram.load")
 def loadInsertSizeHistograms(infiles, outfile):
     '''
     Load the histograms to a single table of the project database.
     '''
 
-    if PAIRED:
-        picard_histograms = [x[1] for x in infiles]
+    picard_histograms = [x[1] for x in infiles]
 
-        P.concatenate_and_load(
-            picard_histograms, outfile,
-            regex_filename=(".*/.*/(.*)"
-                            ".insert.size.metrics.histogram"),
-            cat="sample_id",
-            options='-i "insert_size" -e')
-
-    else:
-        statement = '''echo "Not compatible with SE data"
-                       > %(outfile)s
-                    '''
-        P.run(statement)
-
+    P.concatenate_and_load(
+        picard_histograms, outfile,
+        regex_filename=(".*/.*/(.*)"
+                        ".insert.size.metrics.histogram"),
+        cat="sample_id",
+        options='-i "insert_size" -e')
 
 
 
 
 # --------------------- Fraction of spliced reads --------------------------- #
 
-@follows(mkdir("qc.dir/fraction.spliced.dir/"))
-@transform(glob.glob("api/bams/*.bam"),
-           regex(r".*/(.*).bam"),
-           r"qc.dir/fraction.spliced.dir/\1.fraction.spliced")
-def fractionReadsSpliced(infile, outfile):
+
+def fraction_spliced_jobs():
+
+    for sample_id in S.samples.keys():
+    
+        yield([os.path.join("api", "bam", sample_id + ".bam"),
+                os.path.join("bam.qc.dir/fraction.spliced.dir/",
+                            sample_id + ".fraction.spliced.sentinel")])
+
+@files(fraction_spliced_jobs)
+def fractionSpliced(infile, sentinel):
     '''
     Compute fraction of reads containing a splice junction.
     * paired-endedness is ignored
     * only uniquely mapping reads are considered.
     '''
+    
+    t = T.setup(infile, sentinel, PARAMS)
 
     statement = '''echo "fraction_spliced" > %(outfile)s;
                    samtools view %(infile)s
@@ -485,14 +494,15 @@ def fractionReadsSpliced(infile, outfile):
                    | awk '{if(index($1,"N")==0){us+=1}
                            else{s+=1}}
                           END{print s/(us+s)}'
-                   >> %(outfile)s
-                 '''
+                   >> %(out_file)s
+                 ''' % dict(PARAMS, **t.var, **locals())
 
     P.run(statement)
+    IOTools.touch_file(sentinel)
 
 
 @merge(fractionReadsSpliced,
-       "qc.dir/qc_fraction_spliced.load")
+       "bam.qc.dir/qc_fraction_spliced.load")
 def loadFractionReadsSpliced(infiles, outfile):
     '''
     Load fractions of spliced reads to a single table of the project database.
@@ -506,19 +516,9 @@ def loadFractionReadsSpliced(infiles, outfile):
 
 # ---------------- Prepare a post-mapping QC summary ------------------------ #
 
-@follows(mkdir("annotations.dir"))
-@files(None,
-       "annotations.dir/sample.information.txt")
-def sampleInformation(infiles, outfile):
-    '''
-    Make a database table containing per-sample information.
-    '''
 
-    SAMPLES.to_csv(outfile, index=False, sep="\t")
-
-
-@transform(sampleInformation,
-           suffix(".txt"),
+@transform(PARAMS["sample_table"],
+           suffix(".tsv"),
            ".load")
 def loadSampleInformation(infile, outfile):
     '''

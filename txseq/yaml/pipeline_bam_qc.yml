@@ -40,7 +40,7 @@ picard:
   
 resources:
   
-  # resource allocation
+  # resource PARAMS["Pallocation
   memory: 200G
   threads: 16
 

@@ -212,7 +212,9 @@ class samples():
                     # set up fastq attribute
             # when data is SE, 'read2' will not be used
                 
-            for seq_id, entry in fastqs.items():
+            for seq_id in list(fastqs):
+            
+                entry = fastqs[seq_id]
             
                 fqp = fastqs[seq_id]["fastq_path"]
                 sid = fastqs[seq_id]["sample_id"]
@@ -264,6 +266,9 @@ class samples():
             self.samples[sid] = sample(attrs, fastq=fastq)
         
         self.sample_table = sample_table
+        
+        self.npaired = len([x for x in sample_table["type"].values if x == "PE"])
+        
         
 
         
