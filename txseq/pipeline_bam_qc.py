@@ -155,7 +155,7 @@ def collectRnaSeqMetrics(infile, sentinel):
     Run Picard CollectRnaSeqMetrics on the bam files.
     '''
 
-    t = T.setup(infile], sentinel, PARAMS,
+    t = T.setup(infile, sentinel, PARAMS,
             memory=PARAMS["picard_memory"],
             cpu=PARAMS["picard_threads"])
 
@@ -176,15 +176,16 @@ def collectRnaSeqMetrics(infile, sentinel):
     coverage_out = t.out_file[:-len(".metrics")] + ".cov.hist"
     chart_out = t.out_file[:-len(".metrics")] + ".cov.pdf"
 
+    mktemp_template = "ctmp.CollectRnaSeqMetrics.XXXXXXXXXX"
 
-    statement = '''picard_out=`mktemp -p tmp.dir`;
+    statement = '''picard_out=`mktemp -p . %(mktemp_template)s`;
                    %(picard_cmd)s CollectRnaSeqMetrics
                    -I %(bam_file)s
-                   -REF_FLAT %(geneset_flat)s
+                   --REF_FLAT %(geneset_flat)s
                    -O $picard_out
-                   -CHART %(chart_out)s
-                   -STRAND_SPECIFICITY %(picard_strand)s
-                   -VALIDATION_STRINGENCY %(validation_stringency)s
+                   --CHART %(chart_out)s
+                   --STRAND_SPECIFICITY %(picard_strand)s
+                   --VALIDATION_STRINGENCY %(validation_stringency)s
                    %(picard_options)s;
                    grep . $picard_out | grep -v "#" | head -n2
                    > %(out_file)s;
@@ -200,7 +201,7 @@ def collectRnaSeqMetrics(infile, sentinel):
 
 
 @merge(collectRnaSeqMetrics,
-       "qc.dir/qc_rnaseq_metrics.load")
+       "bam.qc.dir/qc_rnaseq_metrics.load")
 def loadCollectRnaSeqMetrics(infiles, outfile):
     '''
     Load the metrics to the db.
@@ -286,11 +287,13 @@ def estimateLibraryComplexity(infile, sentinel):
 
     validation_stringency = PARAMS["picard_validation_stringency"]
 
-    statement = '''picard_out=`mktemp -p tmp.dir`;
+    mktemp_template = "ctmp.EstimateLibraryComplexity.XXXXXXXXXX"
+
+    statement = '''picard_out=`mktemp -p . %(mktemp_template)s`;
                    %(picard_cmd)s EstimateLibraryComplexity
                    -I %(infile)s
                    -O $picard_out
-                   -VALIDATION_STRINGENCY %(validation_stringency)s
+                   --VALIDATION_STRINGENCY %(validation_stringency)s
                    %(picard_options)s;
                    grep . $picard_out | grep -v "#" | head -n2
                    > %(out_file)s;
@@ -308,6 +311,8 @@ def loadEstimateLibraryComplexity(infiles, outfile):
     '''
     Load the complexity metrics to a single table in the project database.
     '''
+    
+    infiles = [x.replace(".sentinel", "") for x in infiles]
 
     P.concatenate_and_load(infiles, outfile,
                            regex_filename=".*/.*/(.*).library.complexity",
@@ -333,7 +338,7 @@ def alignmentSummaryMetrics(infile, sentinel):
     Run Picard AlignmentSummaryMetrics on the bam files.
     '''
 
-    t = T.setup(infiles[0], sentinel, PARAMS,
+    t = T.setup(infile, sentinel, PARAMS,
             memory=PARAMS["picard_memory"],
             cpu=PARAMS["picard_threads"])
 
@@ -342,14 +347,17 @@ def alignmentSummaryMetrics(infile, sentinel):
 
     reference_sequence = os.path.join(PARAMS["primary_assembly"])
 
-    statement = '''picard_out=`mktemp -p tmp.dir`;
+    mktemp_template = "ctmp.CollectAlignmentSummaryMetrics.XXXXXXXXXX"
+
+    statement = '''picard_out=`mktemp -p . %(mktemp_template)s`;
                    %(picard_cmd)s CollectAlignmentSummaryMetrics
                    -I %(infile)s
                    -O $picard_out
-                   -REFERENCE_SEQUENCE %(reference_sequence)s
-                   -VALIDATION_STRINGENCY %(validation_stringency)s
+                   --REFERENCE_SEQUENCE %(reference_sequence)s
+                   --VALIDATION_STRINGENCY %(validation_stringency)s
                    %(picard_options)s;
-                   grep . $picard_out | grep -v "#"
+                   sed -e '1,/## HISTOGRAM/!d' $picard_out
+                   | grep . | grep -v "#"
                    > %(out_file)s;
                    rm $picard_out;
                 ''' % dict(PARAMS, **t.var, **locals())
@@ -364,6 +372,8 @@ def loadAlignmentSummaryMetrics(infiles, outfile):
     '''
     Load the complexity metrics to a single table in the project database.
     '''
+
+    infiles = [x.replace(".sentinel", "") for x in infiles]
 
     P.concatenate_and_load(
         infiles, outfile,
@@ -394,7 +404,7 @@ def insertSizeMetricsAndHistograms(infile, sentinels):
     Run Picard InsertSizeMetrics on the BAM files to
     collect summary metrics and histograms.'''
 
-    t = T.setup(infile, sentinel, PARAMS,
+    t = T.setup(infile, sentinels[0], PARAMS,
             memory=PARAMS["picard_memory"],
             cpu=PARAMS["picard_threads"])
 
@@ -409,13 +419,15 @@ def insertSizeMetricsAndHistograms(infile, sentinels):
     validation_stringency = PARAMS["picard_validation_stringency"]
     reference_sequence = os.path.join(PARAMS["primary_assembly"])
 
-    statement = '''picard_out=`mktemp -p tmp.dir`;
+    mktemp_template = "ctmp.CollectInsertSizeMetrics.XXXXXXXXXX"
+
+    statement = '''picard_out=`mktemp -p . %(mktemp_template)s`;
                    %(picard_cmd)s CollectInsertSizeMetrics
                    -I %(infile)s
                    -O $picard_out
-                   -HISTOGRAM_FILE %(picard_histogram_pdf)s
-                   -VALIDATION_STRINGENCY %(validation_stringency)s
-                   -REFERENCE_SEQUENCE %(reference_sequence)s
+                   --Histogram_FILE %(picard_histogram_pdf)s
+                   --VALIDATION_STRINGENCY %(validation_stringency)s
+                   --REFERENCE_SEQUENCE %(reference_sequence)s
                    %(picard_options)s;
                    grep "MEDIAN_INSERT_SIZE" -A 1 $picard_out
                    > %(picard_summary)s;
@@ -437,7 +449,7 @@ def loadInsertSizeMetrics(infiles, outfile):
     Load the insert size metrics to a single table of the project database.
     '''
 
-    picard_summaries = [x[0] for x in infiles]
+    picard_summaries = [x[0].replace(".sentinel", "") for x in infiles]
 
     P.concatenate_and_load(picard_summaries, outfile,
                             regex_filename=(".*/.*/(.*)"
@@ -454,7 +466,7 @@ def loadInsertSizeHistograms(infiles, outfile):
     Load the histograms to a single table of the project database.
     '''
 
-    picard_histograms = [x[1] for x in infiles]
+    picard_histograms = [x[1].replace(".sentinel", "") for x in infiles]
 
     P.concatenate_and_load(
         picard_histograms, outfile,
@@ -487,7 +499,7 @@ def fractionSpliced(infile, sentinel):
     
     t = T.setup(infile, sentinel, PARAMS)
 
-    statement = '''echo "fraction_spliced" > %(outfile)s;
+    statement = '''echo "fraction_spliced" > %(out_file)s;
                    samtools view %(infile)s
                    | grep NH:i:1
                    | cut -f 6
@@ -501,12 +513,14 @@ def fractionSpliced(infile, sentinel):
     IOTools.touch_file(sentinel)
 
 
-@merge(fractionReadsSpliced,
+@merge(fractionSpliced,
        "bam.qc.dir/qc_fraction_spliced.load")
-def loadFractionReadsSpliced(infiles, outfile):
+def loadFractionSpliced(infiles, outfile):
     '''
     Load fractions of spliced reads to a single table of the project database.
     '''
+    
+    infiles = [x.replace(".sentinel","") for x in infiles]
 
     P.concatenate_and_load(infiles, outfile,
                            regex_filename=".*/.*/(.*).fraction.spliced",
@@ -525,20 +539,17 @@ def loadSampleInformation(infile, outfile):
     Load the sample information table to the project database.
     '''
 
-    P.load(infile, outfile)
+    P.load(infile, outfile, options='-i "sample_id"')
 
 
 @merge([loadSampleInformation,
         loadCollectRnaSeqMetrics,
         loadThreePrimeBias,
         loadEstimateLibraryComplexity,
-        #loadSpikeVsGenome,
-        loadFractionReadsSpliced,
-        #loadNumberGenesDetectedSalmon,
-        #loadNumberGenesDetectedFeatureCounts,
+        loadFractionSpliced,
         loadAlignmentSummaryMetrics,
         loadInsertSizeMetrics],
-       "qc.dir/qc_summary.txt")
+       "bam.qc.dir/qc_summary.txt")
 def qcSummary(infiles, outfile):
     '''
     Create a summary table of relevant QC metrics.
@@ -562,37 +573,16 @@ def qcSummary(infiles, outfile):
         paired_columns = ''
         pcat = "UNPAIRED"
 
-    if fastqMode:
-        exclude = exclude
-        fastq_columns = '''qc_no_genes_salmon.protein_coding
-                              as salmon_no_genes_pc,
-                           qc_no_genes_salmon.total
-                              as salmon_no_genes,
-                        '''
-    else:
-        exclude = exclude + ["qc_no_genes_salmon"]
-        fastq_columns = ''
 
     tables = [P.to_table(x) for x in infiles
               if P.to_table(x) not in exclude]
 
     t1 = tables[0]
 
-    name_fields = PARAMS["name_field_titles"].strip()
-
-    stat_start = '''select distinct %(name_fields)s,
-                                    sample_information.sample_id,
+    stat_start = '''select distinct samples.*,
                                     fraction_spliced,
-                                    fraction_spike,
-                                    %(fastq_columns)s
-                                    qc_no_genes_featurecounts.protein_coding
-                                       as featurecounts_no_genes_pc,
-                                    qc_no_genes_featurecounts.total
-                                       as featurecounts_no_genes,
                                     three_prime_bias
                                        as three_prime_bias,
-                                    nreads_uniq_map_genome,
-                                    nreads_uniq_map_spike,
                                     %(paired_columns)s
                                     PCT_MRNA_BASES
                                        as pct_mrna,

@@ -280,13 +280,13 @@ def api(infiles, sentinel):
     IOTools.touch_file(sentinel)
 
 
-@files(api, "hisat.dir/useBams.sentinel")
-def useBams(infile, sentinel):
+@files(api, "hisat.dir/useBam.sentinel")
+def useBam(infile, sentinel):
     '''
     Link the hisat2 BAM files to the api.dir/bam directory
     '''
 
-    os.symlink("hisat.dir", "api/bams")
+    os.symlink("hisat.dir", "api/bam")
     
     IOTools.touch_file(sentinel)
 
