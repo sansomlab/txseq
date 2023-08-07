@@ -634,21 +634,6 @@ def qc():
 
 # --------------------- < generic pipeline tasks > -------------------------- #
 
-@follows(mkdir("notebook.dir"))
-@transform(glob.glob(os.path.join(os.path.dirname(__file__),
-                                  "pipeline_notebooks",
-                                  os.path.basename(__file__)[:-len(".py")],
-                                  "*")),
-           regex(r".*/(.*)"),
-           r"notebook.dir/\1")
-def notebooks(infile, outfile):
-    '''
-    Utility function to copy the notebooks from the source directory
-    to the working directory.
-    '''
-
-    shutil.copy(infile, outfile)
-
 
 @follows(qc)
 def full():

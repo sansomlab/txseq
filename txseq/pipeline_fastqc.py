@@ -11,7 +11,7 @@ Pipeline fastqc
 Overview
 ========
 
-The pipeline runs the FASTQc package and post-processed the output
+The pipeline runs the `FASTQC quality control tool <https://www.bioinformatics.babraham.ac.uk/projects/fastqc/>`_ and post-processes the output
 for downstream-visualisation.
 
 Usage
@@ -37,65 +37,6 @@ Input files
 
 The following input tables are required.
 
-(1) "samples.tsv"
-^^^^^^^^^^^^^^^^^
-
-A table with the following mandatory columns:
-
-* "sample_id": a unique identifier for the sample
-* "type": either 'SE' for single end or 'PE' for paired end
-* "strand": either 'none', 'forward' or 'reverse' (see note below).
-
-Sample metadata can also be stored in this table for downstream analysis for 
-example with columns such as:
-
-* "condition"
-* "age"
-* "sex"
-* "genotype"
-* "batch"
-
-.. note:: strand values of 'none', 'forward' and 'reverse' will be used to set parameter values in txseq pipelines as follows:
-
-  * "none":  data is treated as unstranded. This is appropriate for e.g. Illumina Truseq and most single-cell protocols. :
-
-    * hisat: default, i.e. --rna-strandedness not set
-    * cufflinks: fr-secondstrand
-    * HT-seq: no
-    * PICARD: NONE
-    * SALMON: (I)U
-
-  * "forward": The first read (if paired) or read (if single end) corresponds to the transcript strand e.g. Directional Illumina, Standard Solid.
-
-    * hisat: SE: F, PE: FR
-    * cufflinks: fr-secondstrand
-    * HT-seq: yes
-    * PICARD: FIRST_READ_TRANSCRIPTION_STRAND
-    * SALMON: (I)SF
-    
-  * "reverse": The first read (if paired) or read (if single end) corresponds to the reverse complement of the  transcript strand e.g. dUTP, NSR, NNSR
-
-    * hisat: SE: R, PE: RF
-    * cufflinks: fr-firststrand
-    * HT-seq: reverse
-    * PICARD: SECOND_READ_TRANSCRIPTION_STRAND
-    * SALMON: (I)SR
-
-
-(2) "libraries.tsv" 
-^^^^^^^^^^^^^^^^^^^
-
-A table with the following mandatory columns
-
-* "sample_id": these values must match those in the sample_id in the samples.tsv
-* "lane": an integer representing the sequencing lane/unit. 
-* "flow_cell": an integer representing the flow cell.
-* "fastq_path": For SE libraries, the fastq file path. For PE libraries: the 
-   read 1 fastq: the path for read 2 is imputed by the pipelines.
-
-.. Note:: When samples have been sequenced across multiple lanes, use one line per lane. Comma-separated lane and fastq_path values are not supported. Quality control analysis is performed at lane level; lanes will be aggregated for quantitation.
-
-.. Note:: Paired-end fastq files must end with "1|2.fastq.gz" or "fastq.1|2.gz". For paired end samples the Read 1 and Read 2 FASTQ files for the same lane must be located in the same folder.
 
 
 

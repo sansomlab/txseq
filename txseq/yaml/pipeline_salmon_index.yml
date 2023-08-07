@@ -1,5 +1,5 @@
-# Pipeline pipeline_salmon_index.py configuration file
-# ====================================================
+# pipeline_salmon_index.py configuration file
+# ===========================================
 #
 
 # see: https://combine-lab.github.io/alevin-tutorial/2019/selective-alignment/
@@ -7,11 +7,15 @@
 #
 # It is recommended to retrieve and use the "Genome sequence, primary assembly" 
 # (regions "PRI") fasta file from gencode
-genome_fasta: /well/kir/mirror/gencode/human/GRCh38.primary_assembly.genome.fa.gz
+# e.g. human: /well/kir/mirror/gencode/GRCh38.p14.44.dir/GRCh38.primary_assembly.genome.fa.gz
+# e.g. mouse: /well/kir/mirror/gencode/GRCm39.M33.dir/GRCm39.primary_assembly.genome.fa.gz
+genome_fasta: 
 
 # It is recommended to retrieve and use the "Transcript sequences" 
 # (regions "CHR") fasta file from gencode
-transcript_fasta: /well/kir/mirror/gencode/human/gencode.v43.transcripts.fa.gz
+# e.g. human: /well/kir/mirror/gencode/GRCh38.p14.44.dir/gencode.v44.transcripts.fa.gz
+# e.g. mouse: /well/kir/mirror/gencode/GRCm39.M33.dir/gencode.vM33.transcripts.fa.gz
+transcript_fasta: 
 
 # The source of the fasta file.
 # if set to "gencode", the "--gencode" flag is passed to the "salmon index" command
@@ -37,7 +41,6 @@ options: --keepDuplicates
 #   building the index with a slightly smaller k."
 #
 kmerLen: 31
-
   
 resources:
   

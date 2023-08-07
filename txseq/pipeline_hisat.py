@@ -34,11 +34,11 @@ Inputs
 
 2. samples.tsv
 ^^^^^^^^^^^^^^
-For details of this file see :doc:`pipeline_readqc.py </pipelines/pipeline_readqc>`
+For details of this file see :doc:`pipeline_setup.py </pipelines/pipeline_setup>`
 
 3. libraries.tsv
 ^^^^^^^^^^^^^^^^
-For details of this file see :doc:`pipeline_readqc.py </pipelines/pipeline_readqc>`
+For details of this file see :doc:`pipeline_setup.py </pipelines/pipeline_setup>`
 
 The location of these files must be specified in the 'pipeline_salmon.yml' file.
 

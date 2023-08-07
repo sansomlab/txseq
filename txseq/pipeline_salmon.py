@@ -37,13 +37,6 @@ Inputs
 
 Used to map transcripts to genes for gene level quantification. 
 
-3. samples.tsv
-^^^^^^^^^^^^^^
-For details of this file see :doc:`pipeline_readqc.py </pipelines/pipeline_readqc>`
-
-4. libraries.tsv
-^^^^^^^^^^^^^^^^
-For details of this file see :doc:`pipeline_readqc.py </pipelines/pipeline_readqc>`
 
 The location of these files must be specified in the 'pipeline_salmon.yml' file.
 
@@ -276,11 +269,6 @@ def loadSalmonTPMs(infile, outfile):
     P.load(infile, outfile, options=opts,
            job_memory=PARAMS["sql_himem"])
 
-
-# For summarisation of Salmon counts downstream, use of
-# tximport is recommended.
-# For this the annotations.dir/tx2gene.txt file provides
-# the transcript -> gene mappings.
 
 
 
