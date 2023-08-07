@@ -68,6 +68,7 @@ Requirements:
 * Python 3.6
 
 * Biopython v1.77 (or lower)
+    * On the BMRC, you can load the required version using the command: "module load Biopython/1.76-foss-2020a-Python-3.8.2"
 * NumPy
 * SciPy
 * Pandas
@@ -75,7 +76,7 @@ Requirements:
 Pipeline output
 ===============
 
-.. TBC
+The file named 'sample_name.partial_genotype.json' contains the genotype results. Meanwhile, you can find the quantification results within the 'quant' directory.
 
 Code
 ====
@@ -101,17 +102,16 @@ import cgatcore.iotools as IOTools
 
 # import local pipeline utility functions
 # import txseq.tasks as T
-
+import tasks as T
 
 # ----------------------- < pipeline configuration > ------------------------ #
 
+# Override function to collect config files
+P.control.write_config_files = T.write_config_files
 
-# load options from the config file
-PARAMS = P.get_parameters(
-    ["%s/pipeline.yml" % os.path.splitext(__file__)[0],
-     "../pipeline.yml",
-     "pipeline.yml"])
-
+# load options from the yml file
+P.parameters.HAVE_INITIALIZED = False
+PARAMS = P.get_parameters(T.get_parameter_file(__file__))
 
 # ---------------------- < Read parameters > ------------------------ #
 
@@ -124,21 +124,22 @@ if str(PARAMS["single"]).lower() in ("1", "true", "yes"):
 else:
     single = False
 
-# Read other optioins
-extract_option = PARAMS["extract_option"]
-
 # ########################################################################### #
 # ############################ Extract Reads  ############################### #
 # ########################################################################### #
 
 @mkdir("arcasHLA.dir")
-@transform(bam_files, regex(r".*/(.*).bam"), r"arcasHLA.dir/\1/\1.extract.log")
+@transform(bam_files, regex(r".*/(.*).bam"), r"arcasHLA.dir/\1/\1.extract.sentinel")
 def estractReads(infile, outfile):
     '''
     Extract chr6 reads and related HLA sequences from sorted BAM files.
     '''
     sample_name = os.path.basename(infile)[:-len(".bam")]
     outpath = os.path.dirname(outfile)
+    
+    t = T.setup(infile, outfile, PARAMS,
+                memory=PARAMS["resources_memory"],
+                cpu=PARAMS["resources_threads"])
     
     # Read parameters
     if single:
@@ -147,18 +148,19 @@ def estractReads(infile, outfile):
         single_option = ""
         
     extract_option = PARAMS["extract_option"]
-    
-    n_threads = PARAMS["threads"]
-        
+
     statement = '''arcasHLA extract
                 %(single_option)s
                 %(extract_option)s
                 -o %(outpath)s
-                -t %(n_threads)s
+                -t %(resources_threads)s
                 %(infile)s
-                &> %(outfile)s
-                '''
-    P.run(statement, job_threads=n_threads)
+                &> %(log_file)s;
+                ''' % dict(PARAMS, **t.var, **locals())
+     
+    P.run(statement, **t.resources)
+    IOTools.touch_file(outfile)
+
 
 
 # ########################################################################### #
@@ -166,83 +168,93 @@ def estractReads(infile, outfile):
 # ########################################################################### #
 
 @follows(estractReads)
-@transform(estractReads,regex(r".*/(.*).extract.log"),r"arcasHLA.dir/\1/\1.genotype.log")
+@transform(estractReads,regex(r".*/(.*).extract.sentinel"),r"arcasHLA.dir/\1/\1.genotype.sentinel")
 def genotype(infile, outfile):
     '''
     Perform Genotyping.
     '''
+    
+    t = T.setup(infile, outfile, PARAMS,
+                memory=PARAMS["resources_memory"],
+                cpu=PARAMS["resources_threads"])
 
     fastq_path = os.path.dirname(infile)
-    sample_name = os.path.basename(infile)[:-len(".extract.log")]
+    sample_name = os.path.basename(infile)[:-len(".extract.sentinel")]
     outpath = os.path.dirname(outfile)
-    
-    n_threads = PARAMS["threads"]
-        
+
     if single:
         fastq_file = os.path.join(fastq_path, sample_name+".extracted.fq.gz")
         statement = '''arcasHLA genotype
                     --single 
                     -o %(outpath)s
-                    -t %(n_threads)s
+                    -t %(resources_threads)s
                     %(fastq_file)s
-                    &> %(outfile)s
-                    ''' 
+                    &> %(log_file)s;
+                    '''  % dict(PARAMS, **t.var, **locals())
     else:
         fastq_file_1 = os.path.join(fastq_path, sample_name+".extracted.1.fq.gz")
         fastq_file_2 = os.path.join(fastq_path, sample_name+".extracted.2.fq.gz")
         statement = '''arcasHLA genotype
                     -o %(outpath)s
-                    -t %(n_threads)s
+                    -t %(resources_threads)s
                     %(fastq_file_1)s
                     %(fastq_file_2)s
-                    &> %(outfile)s
-                    '''
+                    &> %(log_file)s;
+                    ''' % dict(PARAMS, **t.var, **locals())
     
-    P.run(statement, job_threads=n_threads)
+    P.run(statement, **t.resources)
+    
+    IOTools.touch_file(outfile)
 
 # ########################################################################### #
 # ############################ Build Reference ############################## #
 # ########################################################################### #
 
 @follows(genotype)
-@transform(genotype,regex(r".*/(.*).genotype.log"),r"arcasHLA.dir/\1/\1.buildref.log")
+@transform(genotype,regex(r".*/(.*).genotype.sentinel"),r"arcasHLA.dir/\1/\1.buildref.sentinel")
 def buildReference(infile, outfile):
     '''
     Build Customized References
     '''
+    
+    t = T.setup(infile, outfile, PARAMS,
+                memory=PARAMS["resources_memory"],
+                cpu=PARAMS["resources_threads"])
+    
     json_path = os.path.dirname(infile)
-    sample_name = os.path.basename(infile)[:-len(".genotype.log")]
+    sample_name = os.path.basename(infile)[:-len(".genotype.sentinel")]
     outpath = os.path.dirname(outfile)
     json_file = os.path.join(json_path, sample_name+".genotype.json")
-    
-    n_threads = PARAMS["threads"]
-        
+
     statement = '''arcasHLA customize
                 -G %(json_file)s
                 -o %(outpath)s
-                -t %(n_threads)s
+                -t %(resources_threads)s
                 --transcriptome chr6
-                &> %(outfile)s
-                '''
-    P.run(statement, job_threads=n_threads)
+                &> %(log_file)s;
+                ''' % dict(PARAMS, **t.var, **locals())
     
+    P.run(statement, **t.resources)
+    IOTools.touch_file(outfile)
 
 # ########################################################################### #
 # ############################ Quantification ############################### #
 # ########################################################################### #
 
 @follows(buildReference)
-@transform(buildReference,regex(r".*/(.*).buildref.log"),r"arcasHLA.dir/\1/\1.quantification.log")
+@transform(buildReference,regex(r".*/(.*).buildref.sentinel"),r"arcasHLA.dir/\1/\1.quantification.sentinel")
 def quantification(infile, outfile):
     '''
     Perform Quantification
     '''
-    sample_name = os.path.basename(infile)[:-len(".buildref.log")]
+    sample_name = os.path.basename(infile)[:-len(".buildref.sentinel")]
     sample_path = os.path.dirname(infile)
     ref_file = sample_path + '/' + sample_name
     outpath = os.path.join(os.path.dirname(outfile),'quant')
     
-    n_threads = PARAMS["threads"]
+    t = T.setup(infile, outfile, PARAMS,
+                memory=PARAMS["resources_memory"],
+                cpu=PARAMS["resources_threads"])
         
     if single:
         fastq_file = os.path.join(sample_path, sample_name+".extracted.fq.gz")
@@ -250,23 +262,24 @@ def quantification(infile, outfile):
                     --single 
                     --ref %(ref_file)s
                     -o %(outpath)s
-                    -t %(n_threads)s
+                    -t %(resources_threads)s
                     %(fastq_file)s
-                    &> %(outfile)s
-                    ''' 
+                    &> %(log_file)s;
+                    ''' % dict(PARAMS, **t.var, **locals())
     else:
         fastq_file_1 = os.path.join(sample_path, sample_name+".extracted.1.fq.gz")
         fastq_file_2 = os.path.join(sample_path, sample_name+".extracted.2.fq.gz")
         statement = '''arcasHLA quant
                     --ref %(ref_file)s
-                    -t %(n_threads)s
+                    -t %(resources_threads)s
                     -o %(outpath)s
                     %(fastq_file_1)s
                     %(fastq_file_2)s
-                    &> %(outfile)s
-                    '''
+                    &> %(log_file)s;
+                    ''' % dict(PARAMS, **t.var, **locals())
     
-    P.run(statement, job_threads=n_threads)
+    P.run(statement, **t.resources)
+    IOTools.touch_file(outfile)
 
 # --------------------- < generic pipeline tasks > -------------------------- #
 

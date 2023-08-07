@@ -3,10 +3,10 @@
 #
 
 # location of bam files
-bam_path: /gpfs3/well/sansom/users/rrl815/work/00_test/test_arcashla/test_bulk_pipeline/bam_file_folder 
+bam_path: /gpfs3/well/sansom/users/rrl815/work/00_test/test_arcashla/test_bulk_pipeline/test_b/bam_file_folder/
 
 # paired or single
-single: False
+single: True
 
 # Extract Options
 # ---------------
@@ -14,3 +14,6 @@ extract:
     # use --unmapped to include unmapped reads
     option: --unmapped
 
+resources:
+    memory: 24G
+    threads: 8
