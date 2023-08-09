@@ -22,8 +22,6 @@ input:
   # Either a path to a tsv file or "None"
   bams: None
 
-
-
 fastqc:
   # Path to file with contaminants or "default"
   # if set to "default" an inbuilt default list is used
@@ -32,7 +30,6 @@ fastqc:
   # Path to file with adaptors or "default"
   # If set to "default" an inbuilt default list is used
   adaptors: default
-
 
 salmon:
   # the location of the salmon index
