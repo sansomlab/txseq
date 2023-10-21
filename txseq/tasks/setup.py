@@ -140,7 +140,7 @@ class setup():
             
             self.inname = os.path.basename(infile)
 
-        if make_outdir:
+        if make_outdir and self.outdir not in ['','.']:
 
          # take care of making the output directory.
             if not os.path.exists(self.outdir):

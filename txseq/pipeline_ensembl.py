@@ -8,8 +8,8 @@ Overview
 This pipeline post-processes Ensembl annotation files to prepare a set of annotation files suitable for the analysis of RNA-sequencing data. It performs the following tasks:
 
 #. Makes a version of primary assembly FASTA file in which the Y chromosome PAR regions are hard masked.
-#. Makes a coding and non-coding transcript FASTA file that only contains records for PRI contigs and that excludes transcript sequences from the Y chromosome PAR region
-#. Makes a new version of the ensembl GTF file that only contains records for PRI contigs and that excludes gene models from the Y chromosome PAR region
+#. Makes a coding and non-coding transcript FASTA file that only contains records for PRI contigs and that excludes transcript sequences from the Y chromosome PAR region (by filtering the Ensembl cdna and ncrna transcript fasta files)
+#. Makes a filtered version of the Ensembl geneset GTF file that only contains records for PRI contigs and that excludes gene models from the Y chromosome PAR region.
 
 
 Configuration
@@ -49,6 +49,8 @@ Code
 """
 from ruffus import *
 import sys
+import os
+from pathlib import Path
 
 # import CGAT-core pipeline functions
 from cgatcore import pipeline as P
@@ -73,6 +75,9 @@ PARAMS["txseq_code_dir"] = Path(__file__).parents[1]
 # ---------------------- < specific pipeline tasks > ------------------------ #
 
 
+# TODO: add basic sanity checks that input files exist...
+
+
 @files(PARAMS["par"],
        "Y.PAR.bed")
 def extractYPAR(infile, outfile):
@@ -87,40 +92,45 @@ def extractYPAR(infile, outfile):
     P.run(statement)
                 
 
-@transform(PARAMS["primary_assembly"],
-           suffix(".gz"),
-           add_inputs(extractYPAR),
-           "primary.assembly.fa.gz.sentinel")
-def hardMaskYPAR(infiles, sentinel):
+
+@transform(extractYPAR,
+           regex(r"(.*).bed"),
+           r"ypar.masked.primary.assembly.fa.sentinel")
+def hardMaskYPAR(infile, sentinel):
     '''
        Hard mask the chromosome Y PAR region 
     '''
     
-    assembly, y_par_bed = infiles
+    y_par_bed = infile
     
-    t = T.setup(assembly, sentinel, PARAMS)
+    t = T.setup(y_par_bed, sentinel, PARAMS)
+
     
     statement = '''bedtools maskfasta
-                   -fi %(assembly)s
+                   -fi <(zcat %(primary_assembly)s)
                    -fo %(out_file)s
                    -bed %(y_par_bed)s
-                    &> %(log_file)s 
+                    &> %(log_file)s;
+                    gzip %(out_file)s;
                 ''' % dict(PARAMS, **t.var, **locals())
                 
     P.run(statement, **t.resources)
     IOTools.touch_file(sentinel)    
 
 
-@files(PARAMS["primary_assembly"],
-       "primary.assembly.contigs.sentinel"
+@transform(hardMaskYPAR,
+           regex(r"(.*).fa.sentinel"),
+           r"contigs.sentinel")
 def contigs(infile, sentinel):
     '''
     Get a list of the contigs present in the primary assembly
     '''
     
+    assembly = infile.replace(".sentinel",".gz")
+    
     t = T.setup(assembly, sentinel, PARAMS)
     
-    statement = '''zgrep \> %(infile)s
+    statement = '''zgrep \> %(assembly)s
                    | sed 's/>//g'
                    > %(out_file)s
                 ''' % dict(**t.var, **locals())
@@ -128,49 +138,100 @@ def contigs(infile, sentinel):
     P.run(statement, **t.resources)
     IOTools.touch_file(sentinel)  
 
-@files([PARAMS["cdna"], PARAMS["ncrna"]],
-       "transcripts.fa.gz.sentinel")
-def transcripts(infiles, sentinel):
+
+@transform(contigs,
+           regex(r".*.sentinel"),
+           add_inputs(extractYPAR),
+           "filtered.transcripts.fa.gz.sentinel")
+def filteredTranscriptFasta(infiles, sentinel):
     '''
-    Build the full set of cDNA and ncRNA Ensembl transcripts
+    Filter ensembl cdna & ncrna fasta files to exclude genes on non primary contigs
+    and genes in the Y PAR region.
     '''
     
-    cdna, ncrna = infiles
+    contig_file_sentinel, ypar = infiles
+    contig_file = contig_file_sentinel.replace(".sentinel","")
 
-    t = T.setup(cdna, sentinel, PARAMS)
+    t = T.setup(contig_file, sentinel, PARAMS)
         
-    mktemp_template = "ctmp.transcripts.XXXXXXXXXX"
-    
-    statement='''python %(txseq_code_dir)s/python/sanitise.transcripts.py
-                 --infiles=%(cdna)s,%(rna)s
-                 --contigs=%(contigs)s
-                 --ypar=%(ypar)s
+    statement='''python %(txseq_code_dir)s/python/ensembl_filter_transcript_fasta.py
+                 --ensembltxfasta=%(cdna)s,%(ncrna)s
+                 --contigs=%(contig_file)s
+                 --mask=%(ypar)s
                  --outfile=%(out_file)s
-              '''% dict(**t.var, **locals())
-
+                 &> %(log_file)s
+              ''' % dict(PARAMS, **t.var, **locals())
+    
     P.run(statement, **t.resources)
     IOTools.touch_file(sentinel)
 
 
-@files(PARAMS["geneset"],
-       "geneset.gtf.gz.sentinel")
-def gtf(infile, outfile):
+@transform(contigs,
+           regex(r".*.sentinel"),
+           add_inputs(extractYPAR),
+           "filtered.geneset.gtf.gz.sentinel")
+def filteredGTF(infiles, sentinel):
     '''
-    Sanitise the geneset to (a) include records from only contigs of interest and
-    (b) to exclude records falling in the Y chromosome PAR region
+    Filter the ensembl geneset to exclude genes on non primary contigs
+    and genes in the Y PAR region.
     '''
     
+    contig_file_sentinel, ypar = infiles
+    contig_file = contig_file_sentinel.replace(".sentinel","")
+
+    t = T.setup(contig_file, sentinel, PARAMS)
+        
+    statement='''python %(txseq_code_dir)s/python/ensembl_filter_gtf.py
+                 --ensemblgtf=%(geneset)s
+                 --contigs=%(contig_file)s
+                 --mask=%(ypar)s
+                 --outfile=%(out_file)s
+                 &> %(log_file)s
+              ''' % dict(PARAMS, **t.var, **locals())
     
-                 
+    P.run(statement, **t.resources)
+    IOTools.touch_file(sentinel)
 
 
+@follows(hardMaskYPAR,
+         filteredTranscriptFasta,
+         filteredGTF)
+@files(None,"api.sentinel")
+def api(infile, sentinel):
 
+    if not os.path.exists("api.dir"):
+        os.mkdir("api.dir")
+
+    pa = "ypar.masked.primary.assembly.fa.gz"
     
+    if not os.path.exists(pa):
+        raise ValueError("ypar masked primary assembly file not found")
     
+    os.symlink(os.path.join("..",pa), 
+               os.path.join("api.dir","txseq.genome.fasta.gz"))
+    
+    txfa = "filtered.transcripts.fa.gz"
+    
+    if not os.path.exists(txfa):
+        raise ValueError("filtered transcript fasta file not found")
+        
+    os.symlink(os.path.join("..",txfa), 
+               os.path.join("api.dir","txseq.transcript.fasta.gz"))
+    
+    gtf = "filtered.geneset.gtf.gz"
+    
+    if not os.path.exists(gtf):
+        raise ValueError("filtered geneset gtf file not found")
+        
+    os.symlink(os.path.join("..", gtf), 
+               os.path.join("api.dir","txseq.geneset.gtf.gz"))
+    
+    IOTools.touch_file(sentinel)
+
 
 # --------------------- < generic pipeline tasks > -------------------------- #
 
-@follows(index)
+@follows(api)
 def full():
     '''Target to run the full pipeline'''
     pass
