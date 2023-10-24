@@ -1,0 +1,44 @@
+# Pipeline pipeline_bam_qc.py configuration file
+# =============================================
+#
+
+# location of the local sqlite3 database
+sqlite:
+  file: csvdb
+  himem: 10000M
+
+
+# path to the sample table
+samples: ../samples.tsv
+
+# path to the folder containing the bam files
+bam_path: ../hisat/hisat.dir/
+
+txseq:
+  # Path to the location where the "txseq ensembl" pipeline was run
+  # to generate the sanitised genome, transcript fasta and gtf files 
+  annotations: /well/kir/projects/mirror/txseq/GRCh38.110.dir/ensembl.dir
+  
+picard:
+
+    cmd: java -jar $EBROOTPICARD/picard.jar
+    # Note that strand specificity is set automatically according to
+    # the general "strand" option defined above.
+
+    validation_stringency: SILENT
+
+    # Number of parallel processes.
+    threads: 3
+
+    # Set the total memory allocated across all threads *in megabytes*.
+    memory: 8G
+
+    # Additional options to individual picard modules.
+    alignmentsummarymetrics_options:
+    collectrnaseqmetrics_options:
+    estimatelibrarycomplexity_options:
+    insertsizemetric_options:
+    
+      # resource PARAMS["Pallocation
+    memory: 200G
+    threads: 16

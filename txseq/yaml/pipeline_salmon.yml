@@ -1,0 +1,31 @@
+# Pipeline pipeline_salmon.py configuration file
+# =============================================
+#
+
+# location of the local sqlite3 database
+sqlite:
+  file: csvdb
+  himem: 10000M
+
+# path to the sample table
+samples: ../samples.tsv
+
+# Path to the table of sequencing libraries (required when starting from FASTQ files)
+# Either a path to a tsv file or "None"
+libraries: ../libraries.tsv
+
+txseq:
+  # Path to the location where the "txseq ensembl" pipeline was run
+  # to generate the sanitised genome, transcript fasta and gtf files 
+  annotations: /well/kir/projects/mirror/txseq/GRCh38.110.dir/ensembl.dir
+  
+  # Path to the location where the "txseq salmon_index" pipeline was run
+  # to generate the salmon index
+  salmon_index: /well/kir/projects/mirror/txseq/GRCh38.110.dir/salmon.index.dir/salmon_index
+
+salmon:
+  # options that will be passed to the salmon quant read-aligment call
+  quant_options: --seqBias --gcBias --validateMapping --rangeFactorizationBins 4
+  
+  memory: 12G
+  threads: 4

@@ -5,21 +5,26 @@
 # see: https://combine-lab.github.io/alevin-tutorial/2019/selective-alignment/
 # used for building a SAF genome index
 #
-# It is recommended to retrieve and use the "Genome sequence, primary assembly" 
-# (regions "PRI") fasta file from gencode
-# e.g. human: /well/kir/mirror/gencode/GRCh38.p14.44.dir/GRCh38.primary_assembly.genome.fa.gz
-# e.g. mouse: /well/kir/mirror/gencode/GRCm39.M33.dir/GRCm39.primary_assembly.genome.fa.gz
+#
+# The txseq sanitised Ensembl primary assembly
+#.dir
+# e.g. human: /well/kir/mirror/txseq/GRCh38.110.dir/ensembl.dir/api.dir/txseq.genome.fa.gz
+# e.g. mouse: /well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir/api.dir/txseq.genome.fa.gz
+
 genome_fasta: 
 
-# It is recommended to retrieve and use the "Transcript sequences" 
-# (regions "CHR") fasta file from gencode
-# e.g. human: /well/kir/mirror/gencode/GRCh38.p14.44.dir/gencode.v44.transcripts.fa.gz
-# e.g. mouse: /well/kir/mirror/gencode/GRCm39.M33.dir/gencode.vM33.transcripts.fa.gz
+
+# The txseq sanitised Ensembl transcript fasta sequences
+#
+# e.g. human: /well/kir/mirror/txseq/GRCh38.110.dir/ensembl.dir/api.dir/txseq.transcript.fa.gz
+# e.g. mouse: /well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir/api.dir/txseq.transcript.fa.gz
+
 transcript_fasta: 
 
 # The source of the fasta file.
 # if set to "gencode", the "--gencode" flag is passed to the "salmon index" command
-fasta_source: gencode
+# When using a txseq sanitised Ensembl transcript fasta file, this should not be set.
+fasta_source: 
 
 
 # When using the suggested genome and transcript fasta sequences from gencode

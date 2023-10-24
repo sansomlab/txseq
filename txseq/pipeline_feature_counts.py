@@ -1,6 +1,6 @@
-"""=======================
-Pipeline feature_counts
-=======================
+"""=========================
+Pipeline feature_counts.py
+=========================
 
 Overview
 ========
@@ -94,7 +94,7 @@ PARAMS["txseq_code_dir"] = Path(__file__).parents[1]
 
 if len(sys.argv) > 1:
     if(sys.argv[1] == "make"):
-        S = samples.samples(sample_tsv = PARAMS["sample_table"],
+        S = samples.samples(sample_tsv = PARAMS["samples"],
                             library_tsv = None)
 
 
@@ -106,7 +106,7 @@ def count_jobs():
 
     for sample_id in S.samples.keys():
     
-        yield([os.path.join("api", "bam", sample_id + ".bam"),
+        yield([os.path.join(PARAMS["bam_path"], sample_id + ".bam"),
                 os.path.join("feature.counts.dir/",
                             sample_id + ".counts.sentinel")])
 
@@ -137,6 +137,9 @@ def count(infile, sentinel):
 
     mktemp_template = "ctmp.featureCounts.XXXXXXXXXX"
     outfile = sentinel.replace(".sentinel", ".gz")
+
+    geneset = os.path.join(PARAMS["txseq_annotations"],
+                           "api.dir/txseq.geneset.gtf.gz")
 
     statement = '''counts=`mktemp -p . %(mktemp_template)s`;
                    featureCounts

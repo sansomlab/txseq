@@ -30,7 +30,9 @@ Inputs
 1. BAM files
 ^^^^^^^^^^^^^
 
-The pipeline runs against BAM files present in the "api/bam" directory.
+The pipeline runs against BAM files in the location specified in the configuration file.
+
+The BAM file names must be in the format sample_id.bam where "sample_id" matches the entries in the samples.tsv configuration file.
 
 
 Requirements
@@ -96,18 +98,22 @@ PAIRED = False
 
 if len(sys.argv) > 1:
     if(sys.argv[1] == "make"):
-        S = samples.samples(sample_tsv = PARAMS["sample_table"],
+        
+        S = samples.samples(sample_tsv = PARAMS["samples"],
                             library_tsv = None)
-
+        
         if S.npaired > 0: PAIRED = True
-
+        
+        # Set the database locations
+        DATABASE = PARAMS["sqlite"]["file"]
+        
 
 # ---------------------- < specific pipeline tasks > ------------------------ #
 
 # ------------------------- Geneset Definition ------------------------------ #
 
 @follows(mkdir("annotations.dir"))
-@files(PARAMS["geneset"],
+@files(os.path.join(PARAMS["txseq_annotations"],"api.dir/txseq.geneset.gtf.gz"),
        "annotations.dir/geneset.flat.sentinel")
 def flatGeneset(infile, sentinel):
     '''
@@ -144,7 +150,7 @@ def collect_rna_seq_metrics_jobs():
 
     for sample_id in S.samples.keys():
     
-        yield([os.path.join("api", "bam", sample_id + ".bam"),
+        yield([os.path.join(PARAMS["bam_path"], sample_id + ".bam"),
                 os.path.join("bam.qc.dir/rnaseq.metrics.dir/",
                             sample_id + ".rnaseq.metrics.sentinel")])
 
@@ -266,7 +272,7 @@ def estimate_library_complexity_jobs():
     
         if  S.samples[sample_id].paired == True:
     
-            yield([os.path.join("api", "bam", sample_id + ".bam"),
+            yield([os.path.join(PARAMS["bam_path"], sample_id + ".bam"),
                    os.path.join("bam.qc.dir/estimate.library.complexity.dir/",
                                 sample_id + ".library.complexity.sentinel")])
 
@@ -328,7 +334,7 @@ def alignment_summary_metrics_jobs():
 
     for sample_id in S.samples.keys():
     
-        yield([os.path.join("api", "bam", sample_id + ".bam"),
+        yield([os.path.join(PARAMS["bam_path"], sample_id + ".bam"),
                 os.path.join("bam.qc.dir/alignment.summary.metrics.dir/",
                             sample_id + ".alignment.summary.metrics.sentinel")])
 
@@ -345,7 +351,11 @@ def alignmentSummaryMetrics(infile, sentinel):
     picard_options = PARAMS["picard_alignmentsummarymetric_options"]
     validation_stringency = PARAMS["picard_validation_stringency"]
 
-    reference_sequence = os.path.join(PARAMS["primary_assembly"])
+    reference_sequence = os.path.join(PARAMS["txseq_annotations"],
+                                      "api.dir/txseq.genome.fa.gz")
+    
+    if not os.path.exists(reference_sequence):
+        raise ValueError("Reference sequence not found")
 
     mktemp_template = "ctmp.CollectAlignmentSummaryMetrics.XXXXXXXXXX"
 
@@ -390,7 +400,7 @@ def insert_size_jobs():
     
         if  S.samples[sample_id].paired == True:
     
-            yield([os.path.join("api", "bam", sample_id + ".bam"),
+            yield([os.path.join(PARAMS["bam_path"], sample_id + ".bam"),
                    [os.path.join("bam.qc.dir/insert.size.metrics.dir/",
                                 sample_id + ".insert.size.metrics.summary.sentinel"),
                     os.path.join("bam.qc.dir/insert.size.metrics.dir/",
@@ -417,7 +427,12 @@ def insertSizeMetricsAndHistograms(infile, sentinels):
         picard_options = ""
 
     validation_stringency = PARAMS["picard_validation_stringency"]
-    reference_sequence = os.path.join(PARAMS["primary_assembly"])
+    
+    reference_sequence = os.path.join(PARAMS["txseq_annotations"],
+                                      "api.dir/txseq.genome.fa.gz")
+    
+    if not os.path.exists(reference_sequence):
+        raise ValueError("Reference sequence not found")
 
     mktemp_template = "ctmp.CollectInsertSizeMetrics.XXXXXXXXXX"
 
@@ -485,7 +500,7 @@ def fraction_spliced_jobs():
 
     for sample_id in S.samples.keys():
     
-        yield([os.path.join("api", "bam", sample_id + ".bam"),
+        yield([os.path.join(PARAMS["bam_path"], sample_id + ".bam"),
                 os.path.join("bam.qc.dir/fraction.spliced.dir/",
                             sample_id + ".fraction.spliced.sentinel")])
 
@@ -531,7 +546,7 @@ def loadFractionSpliced(infiles, outfile):
 # ---------------- Prepare a post-mapping QC summary ------------------------ #
 
 
-@transform(PARAMS["sample_table"],
+@transform(PARAMS["samples"],
            suffix(".tsv"),
            ".load")
 def loadSampleInformation(infile, outfile):
@@ -609,7 +624,7 @@ def qcSummary(infiles, outfile):
 
     statement = "\n".join([stat_start, join_stat, where_stat])
 
-    df = DB.fetch_DataFrame(statement, PARAMS["database_file"])
+    df = DB.fetch_DataFrame(statement, PARAMS["sqlite_file"])
     df.to_csv(outfile, sep="\t", index=False)
 
 

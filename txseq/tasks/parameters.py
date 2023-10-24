@@ -34,15 +34,19 @@ L.setLevel(logging.INFO)
 
 # --------------------------------- Functions -------------------------------- #
 
+
 def write_config_files(pipeline_path, general_path):
     '''
     Retrieve default yaml configuration file from:
         cellhub/yaml/pipeline_[name].yml
     
     '''
+    
+    pipeline_name = os.path.basename(pipeline_path)
 
     paths = [os.path.join(Path(pipeline_path).parents[0], "yaml")]
-    config_files = [ os.path.basename(pipeline_path) + ".yml" ]
+    # config_files = [ os.path.basename(pipeline_path) + ".yml" ]
+    config_files = [ pipeline_name + ".yml" ]
 
     for dest in config_files:
         if os.path.exists(dest):
@@ -71,8 +75,7 @@ def get_parameter_file(pipeline_path):
     '''
 
     pipeline_name = os.path.basename(pipeline_path)
-
-
+    
     if len(sys.argv) > 1:
     
         if sys.argv[1] == "make":

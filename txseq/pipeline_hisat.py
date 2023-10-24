@@ -107,10 +107,11 @@ PARAMS = P.get_parameters(T.get_parameter_file(__file__))
 # set the location of the code directory
 PARAMS["txseq_code_dir"] = Path(__file__).parents[1]
 
+
 if len(sys.argv) > 1:
     if(sys.argv[1] == "make"):
-        S = samples.samples(sample_tsv = PARAMS["sample_table"],
-                            library_tsv = PARAMS["library_table"])
+        S = samples.samples(sample_tsv = PARAMS["samples"],
+                            library_tsv = PARAMS["libraries"])
 
 
 # ---------------------- < specific pipeline tasks > ------------------------ #
@@ -136,8 +137,8 @@ def firstPass(infile, sentinel):
     '''
 
     t = T.setup(infile, sentinel, PARAMS,
-                memory=PARAMS["align_resources_memory"],
-                cpu=PARAMS["align_resources_threads"])
+                memory=PARAMS["hisat_memory"],
+                cpu=PARAMS["hisat_threads"])
     
     sample_id = os.path.basename(sentinel)[:-len(".sentinel")]
 
@@ -150,13 +151,13 @@ def firstPass(infile, sentinel):
     else:
         fastq_input = "-U " + ",".join(sample.fastq["read1"])
     
-    known_ss = ""
-    if PARAMS["align_splice_sites"].lower() != "false":
+    # known_ss = ""
+    # if PARAMS["align_splice_sites"].lower() != "false":
     
-        ss_file = os.path.join(os.path.dirname(PARAMS["align_index"]),
-                               PARAMS["align_splice_sites"])
+    ss_file = os.path.join(os.path.dirname(PARAMS["txseq_hisat_index"]),
+                               "genome.ss")
     
-        known_ss = "--known-splicesite-infile=" + ss_file        
+    known_ss = "--known-splicesite-infile=" + ss_file        
     
     novel_ss_outfile = os.path.join(t.outdir,
                                     sample_id + ".novel.splice.sites.txt")
@@ -167,19 +168,19 @@ def firstPass(infile, sentinel):
         strand_param = ""
 
     statement = '''hisat2
-                        -x %(align_index)s
+                        -x %(txseq_hisat_index)s
                         %(fastq_input)s
-                        --threads %(align_resources_threads)s
+                        --threads %(hisat_threads)s
                         %(known_ss)s
                         --novel-splicesite-outfile %(novel_ss_outfile)s
                         %(strand_param)s
-                        %(align_options)s
+                        %(hisat_options)s
                         -S /dev/null
                         &> %(log_file)s;
                     gzip %(novel_ss_outfile)s
                 ''' % dict(PARAMS, **t.var, **locals())
 
-    P.run(statement)
+    P.run(statement, **t.resources)
     IOTools.touch_file(sentinel) 
 
 
@@ -207,7 +208,7 @@ def novelSpliceSites(infiles, sentinel):
                    rm -rf $sort_dir
                 '''
                 
-    P.run(statement)
+    P.run(statement, **t.resources)
     IOTools.touch_file(sentinel) 
 
 
@@ -227,8 +228,8 @@ def secondPass(infile, sentinel):
     '''
 
     t = T.setup(infile, sentinel, PARAMS,
-                memory=PARAMS["align_resources_memory"],
-                cpu=PARAMS["align_resources_threads"])
+                memory=PARAMS["hisat_memory"],
+                cpu=PARAMS["hisat_threads"])
     
     sample_id = os.path.basename(sentinel)[:-len(".sentinel")]
 
@@ -253,12 +254,12 @@ def secondPass(infile, sentinel):
     statement = '''mkdir -p tmp.dir;
                    sort_dir=`mktemp -d -p tmp.dir`;
                    hisat2
-                      -x %(align_index)s
+                      -x %(txseq_hisat_index)s
                       %(fastq_input)s
-                      --threads %(align_resources_threads)s
+                      --threads %(hisat_threads)s
                       --novel-splicesite-infile %(novel_splice_sites)s
                       %(strand_param)s
-                      %(align_options)s
+                      %(hisat_options)s
                    2> %(log_file)s
                    | samtools view - -bS
                    | samtools sort - -T $sort_dir -o %(outfile)s >>%(log_file)s;
@@ -266,33 +267,12 @@ def secondPass(infile, sentinel):
                    rm -rf $sort_dir;
                  ''' % dict(PARAMS, **t.var, **locals())
 
-    P.run(statement)
+    P.run(statement, **t.resources)
     IOTools.touch_file(sentinel) 
-
-@follows(secondPass, mkdir("api/hisat.dir"))
-@files(glob.glob("hisat.dir/*.bam*"),"hisat.dir/api.sentinel")
-def api(infiles, sentinel):
-
-    for infile in infiles:
-        os.symlink(os.path.join("..","..",infile), 
-                   os.path.join("api", infile))
-        
-    IOTools.touch_file(sentinel)
-
-
-@files(api, "hisat.dir/useBam.sentinel")
-def useBam(infile, sentinel):
-    '''
-    Link the hisat2 BAM files to the api.dir/bam directory
-    '''
-
-    os.symlink("hisat.dir", "api/bam")
-    
-    IOTools.touch_file(sentinel)
 
 # --------------------- < generic pipeline tasks > -------------------------- #
 
-@follows(api)
+@follows(secondPass)
 def full():
     pass
 

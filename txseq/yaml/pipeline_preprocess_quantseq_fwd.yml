@@ -1,0 +1,9 @@
+# pipeline_preprocess_quantseq_fwd.py configuration file
+# =======================================
+#
+
+# The location of a text file containing a list of the paths to FASTQ files to be processed.
+# The file should have one path per line with no header.
+fastqs: fastqs.tsv
+
+

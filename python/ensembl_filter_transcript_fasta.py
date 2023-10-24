@@ -176,8 +176,17 @@ with gzip.open(args.outfile, "wt") as out_file:
                         in_masked = True
                         break
             
+            # remove the version number from the transcript ID
+            # to enable cross-referencing with the ensembl GTF...
+            # (.. assume here that multiple versions of the same transcript
+            #     will not be present in the GTF)
+            out_description = description.split(" ")
+            out_name = out_description[0].split(".")[0]
+            #out_description = " ".join(out_description)
+            #out_name = out_
+            
             if in_masked == False:            
-                out_file.write(">%s\n%s\n" % (description, sequence))
+                out_file.write(">%s\n%s\n" % (out_name, sequence))
                 
         L.info("Summary of excluded contig filtering:")
         for contig,count in skipped_contigs.items():

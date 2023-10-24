@@ -193,9 +193,54 @@ def filteredGTF(infiles, sentinel):
     IOTools.touch_file(sentinel)
 
 
+@transform(filteredGTF,
+           regex(r".*.sentinel"),
+           "transcript.to.gene.map.sentinel")
+def transcriptToGeneMap(infile, sentinel):
+    '''
+    Make a map of transcripts to genes for use by salmon
+    '''
+    
+    gtf = infile.replace(".sentinel","")
+
+    t = T.setup(gtf, sentinel, PARAMS)
+        
+    statement='''zgrep transcript %(gtf)s
+                 | sed 's/.*gene_id "\\([^"]*\\)".*transcript_id "\\([^"]*\\)".*$/\\2\\\t\\1/g' 
+                 | sort -u > %(out_file)s
+              ''' % dict(PARAMS, **t.var, **locals())
+    
+    P.run(statement, **t.resources)
+    IOTools.touch_file(sentinel) 
+    
+@transform(filteredGTF,
+           regex(r".*.sentinel"),
+           "transcript.info.tsv.gz.sentinel")
+def transcriptInfo(infile, sentinel):
+    '''
+    Extract transcript information from the GTF
+    '''
+    
+    gtf = infile.replace(".sentinel","")
+
+    t = T.setup(gtf, sentinel, PARAMS)
+        
+    statement='''python %(txseq_code_dir)s/python/ensembl_extract_gtf_attributes.py
+                 --ensemblgtf=%(geneset)s
+                 --attributes=transcript_id,transcript_name,transcript_biotype,gene_id,gene_name,gene_biotype
+                 --outfile=%(out_file)s
+                 &> %(log_file)s
+              ''' % dict(PARAMS, **t.var, **locals())
+    
+    P.run(statement, **t.resources)
+    IOTools.touch_file(sentinel) 
+
+
 @follows(hardMaskYPAR,
          filteredTranscriptFasta,
-         filteredGTF)
+         filteredGTF,
+         transcriptToGeneMap,
+         transcriptInfo)
 @files(None,"api.sentinel")
 def api(infile, sentinel):
 
@@ -208,7 +253,7 @@ def api(infile, sentinel):
         raise ValueError("ypar masked primary assembly file not found")
     
     os.symlink(os.path.join("..",pa), 
-               os.path.join("api.dir","txseq.genome.fasta.gz"))
+               os.path.join("api.dir","txseq.genome.fa.gz"))
     
     txfa = "filtered.transcripts.fa.gz"
     
@@ -216,7 +261,7 @@ def api(infile, sentinel):
         raise ValueError("filtered transcript fasta file not found")
         
     os.symlink(os.path.join("..",txfa), 
-               os.path.join("api.dir","txseq.transcript.fasta.gz"))
+               os.path.join("api.dir","txseq.transcript.fa.gz"))
     
     gtf = "filtered.geneset.gtf.gz"
     
@@ -225,6 +270,22 @@ def api(infile, sentinel):
         
     os.symlink(os.path.join("..", gtf), 
                os.path.join("api.dir","txseq.geneset.gtf.gz"))
+    
+    tx2gene = "transcript.to.gene.map"
+    
+    if not os.path.exists(tx2gene):
+        raise ValueError("transcript-to-gene map file not found")
+        
+    os.symlink(os.path.join("..", tx2gene), 
+               os.path.join("api.dir","txseq.transcript.to.gene.map"))
+    
+    txinfo = "transcript.info.tsv.gz"
+    
+    if not os.path.exists(txinfo):
+        raise ValueError("transcript info file not found")
+        
+    os.symlink(os.path.join("..", txinfo), 
+               os.path.join("api.dir","txseq.transcript.info.tsv.gz"))
     
     IOTools.touch_file(sentinel)
 
