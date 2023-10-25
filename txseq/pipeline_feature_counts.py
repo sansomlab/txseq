@@ -96,6 +96,9 @@ if len(sys.argv) > 1:
     if(sys.argv[1] == "make"):
         S = samples.samples(sample_tsv = PARAMS["samples"],
                             library_tsv = None)
+        
+        # Set the database location
+        DATABASE = PARAMS["sqlite"]["file"]
 
 
 # ---------------------- < specific pipeline tasks > ------------------------ #
@@ -161,7 +164,7 @@ def count(infile, sentinel):
 
 
 @merge(count,
-       "featureCounts.dir/featurecounts.load")
+       "feature.counts.dir/featurecounts.load")
 def loadCounts(infiles, outfile):
     '''
     Combine and load count data in the project database.
@@ -186,7 +189,7 @@ def geneCounts(infile, outfile):
     '''
 
     table = P.to_table(infile)
-    con = sqlite3.connect(PARAMS["database_file"])
+    con = sqlite3.connect(DATABASE)
     c = con.cursor()
 
     sql = '''select track, gene_id, counts
@@ -209,6 +212,20 @@ def loadGeneCounts(infile, outfile):
     P.load(infile, outfile, options='-i "gene_id"')
 
 
+# ----------------------- load txinfo ------------------------------ #
+
+@files(os.path.join(PARAMS["txseq_annotations"],"api.dir/txseq.transcript.info.tsv.gz"),
+       "transcript.info.load")
+def loadTranscriptInfo(infile, outfile):
+    '''
+    Load the annotations for salmon into the project database.
+    '''
+
+    # will use ~15G RAM
+    P.load(infile, outfile, options='-i "gene_id" -i "transcript_id"')
+
+
+@follows(loadTranscriptInfo)
 @files(loadCounts,
        "feature.counts.dir/number.genes.detected.featurecounts")
 def nGenesDetected(infile, outfile):
@@ -226,7 +243,7 @@ def nGenesDetected(infile, outfile):
                ''' % locals()
 
     melted_df = DB.fetch_DataFrame(statement, 
-                                   PARAMS["database_file"])
+                                   DATABASE)
 
     grouped_df = melted_df.groupby(["gene_biotype", "track"])
 

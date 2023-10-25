@@ -124,7 +124,7 @@ if len(sys.argv) > 1:
         S = samples.samples(sample_tsv = PARAMS["samples"],
                             library_tsv = PARAMS["libraries"])
         
-        # Set the database locations
+        # Set the database location
         DATABASE = PARAMS["sqlite"]["file"]
 
 

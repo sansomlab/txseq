@@ -546,9 +546,8 @@ def loadFractionSpliced(infiles, outfile):
 # ---------------- Prepare a post-mapping QC summary ------------------------ #
 
 
-@transform(PARAMS["samples"],
-           suffix(".tsv"),
-           ".load")
+@files(PARAMS["samples"],
+           "samples.load")
 def loadSampleInformation(infile, outfile):
     '''
     Load the sample information table to the project database.
