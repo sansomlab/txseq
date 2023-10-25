@@ -28,6 +28,15 @@ For building the SAF genome index the pipeline requires:
 
 The location of these three files must be specified in the 'pipeline_salmon.yml' file.
 
+
+Requirements
+------------
+
+The following software is required:
+
+#. Salmon
+
+
 Output files
 ------------
 

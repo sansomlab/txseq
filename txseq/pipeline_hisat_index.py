@@ -30,6 +30,14 @@ For building the  index the pipeline requires:
 
 The location of these files must be specified in the 'pipeline_index.yml' file.
 
+Requirements
+------------
+
+The following software is required:
+
+#. Hisat2
+
+
 Output files
 ------------
 

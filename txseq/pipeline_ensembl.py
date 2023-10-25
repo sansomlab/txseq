@@ -5,11 +5,17 @@ pipeline_ensembl.py
 Overview
 --------
 
-This pipeline post-processes Ensembl annotation files to prepare a set of annotation files suitable for the analysis of RNA-sequencing data. It performs the following tasks:
+This pipeline post-processes Ensembl annotation files to prepare a set of reference files suitable for the analysis of RNA-sequencing data. We use here Ensembl sequences rather than Gencode sequences to avoid this issue: `Salmon issue 214 <https://github.com/COMBINE-lab/salmon/issues/214>`_ . Gencode and Ensembl GTF files are in any case equivalent.
+
+This pipeline prepares genome and annotation files that (a) only include records from PRIMARY contigs, i.e. chromosomes, mitochondrial sequences, unlocalised and unplaced scaffolds but not alternative (ALT) contigs and (b) exclude multi-placed transcript sequences by masking/excluding sequence/records from the Y chromosome PAR region. 
+
+It performs the following tasks:
 
 #. Makes a version of primary assembly FASTA file in which the Y chromosome PAR regions are hard masked.
-#. Makes a coding and non-coding transcript FASTA file that only contains records for PRI contigs and that excludes transcript sequences from the Y chromosome PAR region (by filtering the Ensembl cdna and ncrna transcript fasta files)
-#. Makes a filtered version of the Ensembl geneset GTF file that only contains records for PRI contigs and that excludes gene models from the Y chromosome PAR region.
+#. Makes a FASTA file containing the coding (cDNA) and non-coding (ncRNA) Ensembl transcripts from PRIMARY contigs that are not multi-placed transcript sequences.
+#. Makes a similarly filtered version of the Ensembl geneset GTF file.
+#. Makes a transcript -> gene map for use with sample
+#. Makes a transcript information table that contains information on transcript and gene names and biotypes.
 
 
 Configuration
@@ -39,9 +45,11 @@ Output files
 
 The pipeline creates an "api" folder with the following files for use by downstream pipelines:
 
-#. api/primary.assembly.fa.gz
-#. api/transcripts.fa.gz
-#. api/geneset.gtf.gz
+#. api.dir/txseq.genome.fa.gz: a copy of the Ensembl primary assembly in which Y PAR regions are hard masked
+#. api.dir/txseq.transcript.fa.gz: all records from the Ensembl cDNA and ncRNA transcript fasta files that are on primary contigs and not in the Y PAR region
+#. api.dir/txseq.geneset.gtf.gz: all records from the Ensembl gtf file that are on primary contigs and not in the Y PAR region
+#. api.dir/txseq.transcript.to.gene.map: a tab-seperated list of transcript_id -> gene_id mappings for use with Salmon
+#. api.dir/txseq.transcript.info.tsv.gz: a tab-seperated table of transcription information (including transcript_name, transcript_biotype, gene_name and gene_biotype)
 
 Code
 ====
