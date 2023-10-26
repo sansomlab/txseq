@@ -313,6 +313,9 @@ def loadTranscriptInfo(infile, outfile):
 
     txinfo = os.path.join(PARAMS["txseq_annotations"],
                           "api.dir/txseq.transcript.info.tsv.gz")
+    
+    if not os.path.exists(txinfo):
+        raise ValueError("txseq annotations transcript information file not found")
 
     # will use ~15G RAM
     P.load(txinfo, outfile, options='-i "gene_id" -i "transcript_id"')

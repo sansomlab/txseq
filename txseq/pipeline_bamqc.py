@@ -103,7 +103,7 @@ if len(sys.argv) > 1:
 # ------------------------- Geneset Definition ------------------------------ #
 
 @follows(mkdir("annotations.dir"))
-@files(os.path.join(PARAMS["txseq_annotations"],"api.dir/txseq.geneset.gtf.gz"),
+@files(None,
        "annotations.dir/geneset.flat.sentinel")
 def flatGeneset(infile, sentinel):
     '''
@@ -115,13 +115,19 @@ def flatGeneset(infile, sentinel):
             memory="4G",
             cpu=1)
 
+    gtf_path = os.path.join(PARAMS["txseq_annotations"],
+                            "api.dir/txseq.geneset.gtf.gz")
+    
+    if not os.path.exists(gtf_path):
+        raise ValueError("txseq annotations GTF file not found")
+    
     outfile = sentinel.replace(".sentinel", ".gz")
 
     statement = '''gtfToGenePred
                     -genePredExt
                     -geneNameAsName2
                     -ignoreGroupsWithoutExons
-                    %(infile)s
+                    %(gtf_path)s
                     /dev/stdout |
                     awk 'BEGIN { OFS="\\t"}
                          {print $12, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10}'
