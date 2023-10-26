@@ -19,6 +19,7 @@ tests/_*.yml
 # Packages
 *.egg
 *.egg-info
+*.egg-info/
 dist
 build
 eggs

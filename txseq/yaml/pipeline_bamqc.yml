@@ -17,7 +17,10 @@ bam_path: ../hisat/hisat.dir/
 txseq:
   # Path to the location where the "txseq ensembl" pipeline was run
   # to generate the sanitised genome, transcript fasta and gtf files 
-  annotations: /well/kir/projects/mirror/txseq/GRCh38.110.dir/ensembl.dir
+  #
+  # e.g. for human: /well/kir/mirror/txseq/GRCh38.110.dir/ensembl.dir
+  # e.g. for mouse: /well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir/
+  annotations: 
   
 picard:
 

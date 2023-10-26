@@ -304,15 +304,18 @@ def quantitation():
 
 # ----------------------- load txinfo ------------------------------ #
 
-@files(os.path.join(PARAMS["txseq_annotations"],"api.dir/txseq.transcript.info.tsv.gz"),
+@files(None,
        "transcript.info.load")
 def loadTranscriptInfo(infile, outfile):
     '''
     Load the annotations for salmon into the project database.
     '''
 
+    txinfo = os.path.join(PARAMS["txseq_annotations"],
+                          "api.dir/txseq.transcript.info.tsv.gz")
+
     # will use ~15G RAM
-    P.load(infile, outfile, options='-i "gene_id" -i "transcript_id"')
+    P.load(txinfo, outfile, options='-i "gene_id" -i "transcript_id"')
 
 
 # ------------------------- No. genes detected ------------------------------ #
