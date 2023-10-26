@@ -1,3 +1,0 @@
-[console_scripts]
-txseq = txseq.entry:main
-
