@@ -130,7 +130,8 @@ def count(infile, sentinel):
         featurecounts_options = PARAMS["featurecounts_options"]
 
     mktemp_template = "ctmp.featureCounts.XXXXXXXXXX"
-    outfile = sentinel.replace(".sentinel", ".gz")
+    counts_file = sentinel.replace(".sentinel", ".gz")
+    summary_file = sentinel.replace(".sentinel", ".summary")
 
     geneset = os.path.join(PARAMS["txseq_annotations"],
                            "api.dir/txseq.geneset.gtf.gz")
@@ -146,8 +147,9 @@ def count(infile, sentinel):
                     %(infile)s;
                     cut -f1,7 $counts
                     | grep -v "#" | grep -v "Geneid"
-                    | gzip -c > %(outfile)s;
+                    | gzip -c > %(counts_file)s;
                     rm $counts;
+                    mv ${counts}.summary %(summary_file)s;
                  ''' % dict(PARAMS, **t.var, **locals())
 
     P.run(statement)
@@ -270,7 +272,7 @@ def loadNGenesDetected(infile, outfile):
 # --------------------- < generic pipeline tasks > -------------------------- #
 
 
-@follows(loadNGenesDetected)
+@follows(loadNGenesDetected, loadGeneCounts)
 def full():
     pass
 

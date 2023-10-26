@@ -10,6 +10,7 @@ expression_hist <- function(count_matrix,title="")
     gp <- ggplot(mcm, aes(value,colour=X2)) + geom_density()
     gp <- gp + ggtitle(title) + xlab("") # + xlim(lim)
     gp <- gp + theme(legend.position="none")
+    gp <- gp + theme_bw()
     return(gp)
 }
 

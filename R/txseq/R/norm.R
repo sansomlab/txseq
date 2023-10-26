@@ -18,6 +18,7 @@ plotDensities <- function(countMatrix, phenoData, plot_color, plotTitle)
     mCD$counts[mCD$counts==min(mCD$counts)] <- NA
     gp1 <- ggplot(mCD, aes_string("counts", group="track", color="group")) + geom_density()
     gp1 <- gp1 + ggtitle(plotTitle) + guides(color=FALSE)
+    gp1 <- gp1 + theme_bw()
 
     row_meds <- apply(countMatrix,1,median)
     rle <- log2(countMatrix/row_meds)
@@ -31,6 +32,7 @@ plotDensities <- function(countMatrix, phenoData, plot_color, plotTitle)
                                             axis.ticks.x=element_blank())
     gp2 <- gp2 + geom_hline(yintercept=0, linetype="dashed")
     gp2 <- gp2 + ylab("Relative log expression (RLE)")
+    gp2 <- gp2 + theme_bw()
 
 
     return(list(den=gp1,bp=gp2))

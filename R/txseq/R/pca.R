@@ -25,7 +25,9 @@ ggplot_prcomp <- function(prcomp_object,
 
     gps = list()
 
-    scree <- ggplot(fs, aes(x,y)) + geom_point(size=3) + xlab("principal component") + ylab("proportion of variance") + ggtitle("scree plot")
+    scree <- ggplot(fs, aes(x,y)) + geom_point(size=3) 
+    scree <- scree  + xlab("principal component") + ylab("proportion of variance") + ggtitle("scree plot")
+    scree <- scree + theme_bw()
 
     c_lab <- function(props, C)
          {
@@ -55,6 +57,7 @@ ggplot_prcomp <- function(prcomp_object,
 
             gp <- gp + geom_point(size=size)
             gp <- gp + xlab(c_lab(pvs,PCX)) + ylab(c_lab(pvs,PCY))
+            gp <- gp + theme_bw()
 
             gps[[plot]] <- gp
 

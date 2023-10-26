@@ -23,6 +23,7 @@ import os
 import shutil
 import re
 import copy
+import re
 import pandas as pd
 from pprint import pprint
 
@@ -200,7 +201,7 @@ class samples():
         
         
             # construct a unique "seq_id" for each fastq file.
-            library_table["end"] = 'R1'        
+            library_table["end"] = 'END1'        
             library_table["seq_id"] = library_table[["sample_id","flow_cell","lane","end"
                                                     ]].astype(str).T.apply(
                                                     lambda c: c.str.cat(sep='_'))
@@ -246,10 +247,11 @@ class samples():
                     samples[sid]["fastq"]["read2"].append(r2p)
                         
                     # add the read 2 fastq entries to the fastq dictionary
-                    r2_seq_id = seq_id.replace("_R1", "_R2")
+                    r2_seq_id = re.sub("_END1$", "_END2", seq_id)
                     r2_entry = copy.deepcopy(entry)
                     r2_entry["seq_id"] = r2_seq_id
                     r2_entry["fastq_path"] = r2p
+                    r2_entry["end"] = "END2"
                     fastqs[r2_seq_id] = r2_entry
                     
                 else:

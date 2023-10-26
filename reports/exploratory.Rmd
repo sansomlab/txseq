@@ -1,8 +1,8 @@
 ---
 title: "Exploratory analysis"
-header-includes: #allows you to add in your own Latex packages
-- \usepackage{float} #use the 'float' package
-- \floatplacement{figure}{H} #make every figure with caption = h
+header-includes: 
+- \usepackage{float} 
+- \floatplacement{figure}{H} 
 output:
   pdf_document:
     fig_caption: true
@@ -31,19 +31,41 @@ library(vsn)
 library(gplots)
 library(RColorBrewer)
 library(txseq)
-source("rnaseq.config.R")
 ```
 
+
+## Report configuration
+
+```{r}
+# location of the pipeline_fastqc.py sqlite database
+db="/well/sansom/users/odq545/work/txseq/hsc_example/featurecounts/csvdb"
+sample_table="/well/sansom/users/odq545/work/txseq/hsc_example/samples.tsv"
+
+# configure the plots
+# each variable should be set to either
+# (a) a value recognised by ggplot OR
+# (b) the name of a variable present in the samples.tsv file
+plot_color="condition"    #e.g. "timepoint"
+plot_shape="tissue"    #e.g. "knockdown"
+plot_label="cell_type"    #e.g."replicate"
+
+#
+exclude <- c()
+experiment_groups <- c("tissue","cell_type","condition")
+plot_groups <- c("tissue","cell_type","condition")
+nreplicates=2
+```
 
 ```{r include=FALSE, echo=FALSE}
 
 # load in the count data
-data = fetch_DataFrame("select * from featurecounts_counts", scseq_db)
+data = fetch_DataFrame("select * from featurecounts_counts", db)
 data <- data[,!colnames(data) %in% exclude]
 
 # load in the sample information
-statement = 'select * from sample_information'
-sample_info = fetch_DataFrame(statement, scseq_db)
+#statement = 'select * from sample_information'
+#sample_info = fetch_DataFrame(statement, db)
+sample_info <- read.table(sample_table, header=T, sep="\t")
 
 # add grouping information
 sample_info <- setGroup(sample_info,"experiment_group",experiment_groups)
@@ -107,6 +129,7 @@ d$shape <- columnData[rownames(d),plot_shape]
 gp <- ggplot(d,aes_string("counts","no_genes",color="group", shape="shape", label="label"))
 gp <- gp + geom_text(nudge_y=160,color="grey")
 gp <- gp + geom_point(size=4) + xlab("total read counts") + ylab("no. genes expressed")
+gp <- gp + theme_bw()
 print(gp)
 
 ```

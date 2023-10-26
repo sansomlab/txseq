@@ -2,94 +2,44 @@
 #' 
 #' @export
 #' 
-fetchReadqcLegacy <- function(qc_metric, db=readqc_db,
-                        name_fields=qc_name_field_titles,
-                        plot_group_names=plot_groups,
-                        paired=TRUE)
+fetchFastQC <- function(qc_metric, 
+                        db = fastqc_sqlite_database)
+
 {
-    tracks = fetch_DataFrame("select distinct filename from status_summary",db)
-    tracks$sample = basename(tracks$filename)
-
-    # drop samples starting with "trimmed".
-    tracks <- tracks[!grepl("trimmed",tracks$sample),]
-    rownames(tracks) <- tracks$sample
-
-    begin <- TRUE
+    require(RSQLite)
+    require(DBI)
     
-    # drop samples returning no data
-    for(sample in tracks$sample)
+    con <- dbConnect(RSQLite::SQLite(), dbname = db)
+    tables <- dbListTables(con)
+
+    table_name <- paste("fastqc",qc_metric,sep="_")
+
+    if(!table_name %in% tables)
     {
-        sample <- gsub("\\.","_",sample)
-
-        stat <- paste0("select * from ", sample, "_", qc_metric)
-        temp <- fetch_DataFrame(stat, db)
-
-        if(nrow(temp) == 0)
-        {
-            message("Warning: no data retrieved for", sample)
-        } else {
-            temp$sample <- sample
-            if(begin==TRUE)
-            {
-                results <- temp
-                begin <- FALSE
-            } else {
-                results <- rbind(results,temp)
-            }
-        }
+        print(paste0("Table: ",table_name," not found in ",db))
+        print("Avaliable tables are:")
+        print(tables)
+        return(NULL)
     }
-
-    sample_info <- read.table(text=results$sample,header=F,sep="_",as.is=T)
-
-    if(paired)
-    {
-        default_cols <- c("fastq","end","fastqc")
-    } else {
-        default_cols <- c("fastq","fastqc")
-    }
-
-    colnames(sample_info) <- c(name_fields, default_cols)
-    results <- data.frame(cbind(results,sample_info))
-
-    results <- setGroup(results,"plot_group", plot_group_names)
     
-    results
+    statement = paste0("select * from fastqc_", qc_metric," qc",
+                       " left join fastqs f",
+                       " on qc.sample_id=f.seq_id",
+                       " left join samples s",
+                       " on f.sample_id = s.sample_id")
+    
+    result <- dbSendQuery(con,statement)
+    data <- dbFetch(result)
+    dbDisconnect(con)
+    
+    #print(head(data))
+    
+    # get rid of duplicated sample_id columns
+    data <- data[,!duplicated(colnames(data))]
+    
+    colnames(data) <- gsub(" ","_", colnames(data))
+    colnames(data) <- gsub("-","_", colnames(data))
+    
+    data
 }
-
-
-#' A helper function to retrieve Fastqc results from the pipeline_readqc database
-#' 
-#' @export
-#' 
-fetchReadqc <- function(qc_metric, db=readqc_db,
-                              name_fields=qc_name_field_titles,
-                              plot_group_names=plot_groups,
-                              paired=TRUE)
-{
-  
-  statement = paste0("select * from fastqc_",qc_metric)
-  
-  # get the results
-  data = fetch_DataFrame(statement, db)
-  
-  # add the name field columns
-  data$sample <- gsub("-","_",data$track)
-  if(paired) { name_fields <- c(name_fields, "end") }
-  
-  field_cols <- read.table(text=data$sample, sep="_")
-  colnames(field_cols) <- name_fields
-  
-  results <- cbind(data, field_cols)
-  
-  results <- setGroup(results,"plot_group", plot_group_names)
-  
-  # santise the results column names
-  colnames(results) <- gsub(" ", "_", colnames(results))
-  colnames(results) <- gsub("-", "_", colnames(results))
-  colnames(results) <- gsub("/", "_", colnames(results))
-  
-  results
-}
-
-
 
