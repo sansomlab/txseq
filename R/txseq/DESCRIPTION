@@ -1,0 +1,6 @@
+Package: txseq
+Title: txseq
+Version: 0.1
+Description: A package that provides helper functions for RNA-seq data analysis
+License: GPL-2
+RoxygenNote: 6.0.1
