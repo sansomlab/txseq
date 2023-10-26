@@ -30,7 +30,7 @@ library(dplyr)
 library(vsn)
 library(gplots)
 library(RColorBrewer)
-library(ngsfoo)
+library(txseq)
 source("rnaseq.config.R")
 ```
 

@@ -31,7 +31,7 @@ library(dplyr)
 library(vsn)
 library(gplots)
 library(knitr)
-library(ngsfoo)
+library(txseq)
 source("rnaseq.config.R")
 ```
 

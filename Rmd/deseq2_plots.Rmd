@@ -35,7 +35,7 @@ library(openxlsx)
 library(genefilter)
 library(pander)
 library(ggrepel)
-library(ngsfoo)
+library(txseq)
 source("rnaseq.config.R")
 ```
 
