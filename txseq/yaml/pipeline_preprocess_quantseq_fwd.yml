@@ -6,4 +6,8 @@
 # The file should have one path per line with no header.
 fastqs: fastqs.tsv
 
+# Trim reads?
+# Either "False"
+# or the desired length of the read. Bases will be trimmed from the 3' end.
+trim: False
 

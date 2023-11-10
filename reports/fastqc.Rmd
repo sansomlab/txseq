@@ -198,11 +198,9 @@ print(gp)
 
 \newpage
 
-## Sequence Length Distribution
+## Number of sequences
 
-If the reads have not been pre-processed (i.e. trimmed) a single peak representing the read-length is expected.
-
-```{r seq-length, fig.cap='sequence length distribution', fig.height=4, fig.width=8,  echo=FALSE, message=FALSE}
+```{r seq-counts, fig.cap='sequence length distribution', fig.height=4, fig.width=8,  echo=FALSE, message=FALSE}
 
 sld <- fetchFastQC(qc_metric="sequence_length_distribution")
 
@@ -220,15 +218,23 @@ print(gp)
 ```
 
 
+## Sequence Length Distribution
+
+If the reads have not been pre-processed (i.e. trimmed) a single peak representing the read-length is expected.
+
 ```{r seq-length, fig.cap='sequence length distribution', fig.height=4, fig.width=8,  echo=FALSE, message=FALSE}
 if(!is.null(sld))
 {
-gp <- ggplot(sld, aes_string("seq_id","Length", 
-                             group="sample_id", fill="plot_color", 
-                             shape=as.factor(plot_shape)))
-gp <- gp + geom_col(alpha=0.75) 
+if(length(unique(sld$Length)) > 1)
+{
+sld$lenbin <- read.table(text=sld$Length,sep="-")$V1
+} else { sld$lenbin <- sld$Length} 
+ 
+gp <- ggplot(sld, aes_string("lenbin","Count", 
+                             group="sample_id", color=plot_color))
+gp <- gp + geom_line(alpha=0.75) + geom_point()
 gp <- gp + facet_wrap(~end+lane, scales="free_y")
-gp <- gp + xlab("seq-id") + ylab("Sequence Length (bp)")
+gp <- gp + ylab("number of sequences") + xlab("Sequence Length (bp)")
 gp <- gp + theme_bw() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 print(gp)
 }
@@ -308,7 +314,7 @@ print(gp)
 
 Ideally there should be no or few over-represented sequences and these should represent only a small percentage of the reads. The sequence of over-represented reads is avaliable in the individual FastQC reports.
 
-```{r ors-seq, fig.cap='over-represented sequences per sample', fig.height=4, fig.width=8,  echo=FALSE, message=FALSE, eval=FALSE}
+```{r ors-seq, fig.cap='over-represented sequences per sample', fig.height=4, fig.width=8,  echo=FALSE, message=FALSE}
 ors <- fetchFastQC(qc_metric="overrepresented_sequences")
 
 if(!is.null(ors))
@@ -336,7 +342,7 @@ gp
 ```
 
 
-```{r ors-seq, fig.cap='over-represented sequences by contaminant', fig.height=4, fig.width=8,  echo=FALSE, message=FALSE, eval=FALSE}
+```{r ors-seq-by-contaminant, fig.cap='over-represented sequences by contaminant', fig.height=4, fig.width=8,  echo=FALSE, message=FALSE}
 ors <- fetchFastQC(qc_metric="overrepresented_sequences")
 
 if(!is.null(ors))

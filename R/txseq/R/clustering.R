@@ -206,12 +206,13 @@ get_den <- function(m,
 
     if(optimize)
     {
-      require(cba)
-    co <- order.optimal(d, h$merge)
+      require(dendsort)
+      h <- dendsort(h)
+          #co <- order.optimal(d, h$merge)
 
     # overwrite the hclust object with the optimal leaf order
-    h$merge <- co$merge
-    h$order <- co$order
+    #h$merge <- co$merge
+    #h$order <- co$order
     }
 
     as.dendrogram(h)
@@ -223,6 +224,7 @@ get_den <- function(m,
 rnaseq_heatmap <- function(m,
                            rowden=F,
                            colden=F,
+                           dendrogram="column",
                            labRow=NULL,
                            ramp_colors=c("black","blue","white","yellow","orange","red","brown"),
                            key.xticks=c(1:4),
@@ -251,6 +253,7 @@ rnaseq_heatmap <- function(m,
             Colv=colden,
             mar=mar,
             trace="none",
+            dendrogram=dendrogram,
             colsep=c(seq(1,dim(m)[2],1)),
             sepwidth=c(0.02,0.02),
             key.title = "",

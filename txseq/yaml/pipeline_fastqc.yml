@@ -30,4 +30,8 @@ fastqc:
   # Path to file with adaptors or "default"
   # If set to "default" an inbuilt default list is used
   adaptors: default
+  
+  # Path to file with limits or "default"
+  # If set to "default" the central limits file is used
+  limits: default
 

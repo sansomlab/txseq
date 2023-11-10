@@ -14,7 +14,6 @@ This pipieline cuts adaptors from quantseq data according to the `Lexogen FAQ<ht
     cutadapt -m 20 -O 20 -a "polyA=A{20}" -a "QUALITY=G{20}" -n 2 ${R1_raw} | \
     cutadapt -m 20 -O 3 --nextseq-trim=10 -a "r1adapter=A{18}AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC;min_overlap=3;max_error_rate=0.100000" – | \
     cutadapt -m 20 -O 20 -g "r1adapter=AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC;min_overlap=20" --discard-trimmed -o ${R1_trimmed} –
-    
 
 
 Configuration
@@ -123,16 +122,27 @@ def cutadapt(infile, sentinel):
                 cpu=1)
     
     mktemp_template = "ctmp.cutadapt.XXXXXXXXXX"
+    
+    if PARAMS["trim"] != False:
+        trim = '''trim_out=`mktemp -p . %(mktemp_template)s`;
+                  cutadapt -l %(trim)s %(infile)s -o $trim_out &>> %(log_file)s;
+                  ''' % dict(PARAMS, **t.var, **locals())
+        trim_cleanup="rm $trim_out;"
+    else:
+        trim = "trim_out=%(infile)s"
+        trim_cleanup = ""
 
     # for some reason piping output between cutadapt commands doesn't work...
-    statement = '''cutadapt_out_a=`mktemp -p . %(mktemp_template)s`;
+    statement = trim + '''cutadapt_out_a=`mktemp -p . %(mktemp_template)s`;
                    cutadapt_out_b=`mktemp -p . %(mktemp_template)s`;
-                   cutadapt -m 20 -O 20 -a "polyA=A{20}" -a "QUALITY=G{20}" -n 2 %(infile)s -o $cutadapt_out_a &> %(log_file)s;
+                   cutadapt -m 20 -O 20 -a "polyA=A{20}" -a "QUALITY=G{20}" -n 2 $trim_out -o $cutadapt_out_a &>> %(log_file)s;
                    cutadapt -m 20 -O 3 --nextseq-trim=10 -a "r1adapter=A{18}AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC;min_overlap=3;max_error_rate=0.100000" $cutadapt_out_a -o $cutadapt_out_b &>> %(log_file)s;
                    cutadapt -m 20 -O 20 -g "r1adapter=AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC;min_overlap=20" --discard-trimmed $cutadapt_out_b -o %(out_file)s &>> %(log_file)s;
                    rm $cutadapt_out_a $cutadapt_out_b;
-              ''' % dict(PARAMS, **t.var, **locals())
+              ''' % dict(PARAMS, **t.var, **locals()) + trim_cleanup
               
+    print(statement)
+
     P.run(statement, **t.resources)
     
     IOTools.touch_file(sentinel)

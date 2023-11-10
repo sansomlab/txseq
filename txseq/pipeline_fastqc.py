@@ -185,17 +185,22 @@ def fastqc(infile, outfile):
     
     contaminants = ""
     if PARAMS["fastqc_contaminants"] != "default":
-        contaminants = "-c " + PARAMS["fastqc_contaminants"]
+        contaminants = "--contaminants " + PARAMS["fastqc_contaminants"]
     
     adaptors = ""
     if PARAMS["fastqc_adaptors"] != "default":
         adaptors = "-a " + PARAMS["fastqc_adaptors"]
+        
+    limits = ""
+    if PARAMS["fastqc_limits"] != "default":
+        limits = "-l " + PARAMS["fastqc_limits"]
 
     statement = '''fastqc 
                    -o %(out_path)s
                    --extract
                    %(contaminants)s
                    %(adaptors)s
+                   %(limits)s
                    %(fastq_path)s
                    > %(log_file)s
                 ''' % dict(PARAMS, **t.var, **locals())

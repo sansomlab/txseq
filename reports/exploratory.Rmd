@@ -30,6 +30,7 @@ library(dplyr)
 library(vsn)
 library(gplots)
 library(RColorBrewer)
+library(ggrastr)
 library(txseq)
 ```
 
@@ -147,7 +148,7 @@ vst_gp <- plotDensities(2^vstMat, columnData, "plot_group", "VST transformed, no
 notAllZero <- (rowMeans(vstMat)> min(vstMat))
 sd_gp <- meanSdPlot(vstMat[notAllZero,], ylab="sd, vst",plot=F)
 
-gps <- list(c_gp$den,c_gp$bp, vst_gp$den, vst_gp$bp, sd_gp$gg)
+gps <- list(c_gp$den,c_gp$bp, vst_gp$den, vst_gp$bp, rasterise(sd_gp$gg + theme_bw()))
 
 grid.arrange(grobs=gps, ncols=2, nrows=3)
 ```
@@ -257,28 +258,29 @@ grid.arrange(grobs=gps,ncol=2)
 
 \newpage
 
-## tSNE analysis of samples
+## UMAP analysis of samples
 
 The projection is based on the expression of genes found to have significantly variable expression between the experimental groups (see above).
 
 ```{r echo=FALSE, message=FALSE}
-require(Rtsne)
-tsne_out = Rtsne(t(filteredVSTMat), pca=T, perplexity=10)
+require(umap)
+umap_out = umap(t(filteredVSTMat))#, pca=T, perplexity=10)
 ```
 
 
-```{r exp-tsne, fig.cap='tSNE projection of samples based genes with significantly variable expression between the experimental groups', fig.height=4, fig.width=6,  echo=FALSE, message=FALSE}
+```{r exp-tsne, fig.cap='UMAP projection of samples based genes with significantly variable expression between the experimental groups', fig.height=4, fig.width=6,  echo=FALSE, message=FALSE}
 
-tsne_frame <- as.data.frame(tsne_out$Y)
-rownames(tsne_frame) <- colnames(filteredVSTMat)
-colnames(tsne_frame) <- c("TSNE1", "TSNE2")
+umap_frame <- as.data.frame(umap_out$layout)
+rownames(umap_frame) <- colnames(filteredVSTMat)
+colnames(umap_frame) <- c("UMAP1", "UMAP2")
 
-at <- merge(tsne_frame, columnData, by=0)
+at <- merge(umap_frame, columnData, by=0)
 
-gp <- ggplot(at, aes_string("TSNE1", "TSNE2", 
+gp <- ggplot(at, aes_string("UMAP1", "UMAP2", 
                             color=plot_color, shape=plot_shape))
 gp <- gp + geom_text(aes_string(label=plot_label), nudge_x=4, nudge_y=3,color="grey")
 gp <- gp + geom_point(size=2,alpha=1)
+gp <- gp + theme_bw()
 
 print(gp)
 ```
