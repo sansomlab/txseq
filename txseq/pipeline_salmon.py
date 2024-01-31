@@ -223,6 +223,7 @@ def salmonTPMs(infile, outfile):
     df.to_csv(outfile, sep="\t", index=True, index_label=id_name)
 
 
+@jobs_limit(1)
 @transform(salmonTPMs,
            suffix(".txt"),
            ".load")
@@ -323,6 +324,7 @@ def loadTranscriptInfo(infile, outfile):
 
 # ------------------------- No. genes detected ------------------------------ #
 
+@jobs_limit(1)
 @follows(mkdir("qc.dir/"), loadSalmonTPMs, loadTranscriptInfo)
 @files("salmon.dir/salmon.genes.tpms.load",
        "qc.dir/number.genes.detected.salmon")
@@ -356,6 +358,8 @@ def numberGenesDetectedSalmon(infile, outfile):
 
     count_df.to_csv(outfile, index=False, sep="\t")
 
+
+@jobs_limit(1)
 @files(numberGenesDetectedSalmon,
        "qc.dir/qc_no_genes_salmon.load")
 def loadNumberGenesDetectedSalmon(infile, outfile):
