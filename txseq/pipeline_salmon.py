@@ -219,7 +219,7 @@ def salmonTPMs(infile, outfile):
 
     df = pd.read_sql(sql, con)
 
-    df = df.pivot(id_name, "sample_id", "tpm")
+    df = df.pivot(id_name, columns=["sample_id", "tpm"])
     df.to_csv(outfile, sep="\t", index=True, index_label=id_name)
 
 
