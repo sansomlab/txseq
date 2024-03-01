@@ -190,7 +190,7 @@ def geneCounts(infile, outfile):
           ''' % locals()
 
     df = pd.read_sql(sql, con)
-    df = df.pivot("gene_id", "track", "counts")
+    df = df.pivot(index="gene_id", columns="track", values="counts")
     df.to_csv(outfile, sep="\t", index=True, index_label="gene_id")
 
 
