@@ -135,7 +135,7 @@ def flatGeneset(infile, sentinel):
                     > %(outfile)s
                  '''
 
-    P.run(statement)
+    P.run(statement, **t.resources)
     IOTools.touch_file(sentinel)
 
 
@@ -198,7 +198,7 @@ def collectRnaSeqMetrics(infile, sentinel):
                    rm $picard_out;
                 ''' % dict(PARAMS, **t.var, **locals())
 
-    P.run(statement)
+    P.run(statement, **t.resources)
     IOTools.touch_file(sentinel)
 
 
@@ -302,7 +302,7 @@ def estimateLibraryComplexity(infile, sentinel):
                    rm $picard_out;
                 ''' % dict(PARAMS, **t.var, **locals())
 
-    P.run(statement)
+    P.run(statement, **t.resources)
     IOTools.touch_file(sentinel)
     
 
@@ -368,7 +368,7 @@ def alignmentSummaryMetrics(infile, sentinel):
                    rm $picard_out;
                 ''' % dict(PARAMS, **t.var, **locals())
 
-    P.run(statement)
+    P.run(statement, **t.resources)
     IOTools.touch_file(sentinel)
 
 
@@ -447,7 +447,7 @@ def insertSizeMetricsAndHistograms(infile, sentinels):
                    rm $picard_out;
                 ''' % dict(PARAMS, **t.var, **locals())
 
-    P.run(statement)
+    P.run(statement, **t.resources)
     
     for sentinel in sentinels: 
         IOTools.touch_file(sentinel)
@@ -520,7 +520,7 @@ def fractionSpliced(infile, sentinel):
                    >> %(out_file)s
                  ''' % dict(PARAMS, **t.var, **locals())
 
-    P.run(statement)
+    P.run(statement, **t.resources)
     IOTools.touch_file(sentinel)
 
 
