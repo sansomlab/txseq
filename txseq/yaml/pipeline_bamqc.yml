@@ -41,7 +41,4 @@ picard:
     collectrnaseqmetrics_options:
     estimatelibrarycomplexity_options:
     insertsizemetric_options:
-    
-      # resource PARAMS["Pallocation
-    memory: 200G
-    threads: 16
+
