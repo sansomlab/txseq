@@ -129,7 +129,7 @@ def cutadapt(infile, sentinel):
                   ''' % dict(PARAMS, **t.var, **locals())
         trim_cleanup="rm $trim_out;"
     else:
-        trim = "trim_out=%(infile)s"
+        trim = "trim_out=%(infile)s;"
         trim_cleanup = ""
 
     # for some reason piping output between cutadapt commands doesn't work...
