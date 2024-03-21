@@ -272,7 +272,7 @@ def estimate_library_complexity_jobs():
                    os.path.join("bam.qc.dir/estimate.library.complexity.dir/",
                                 sample_id + ".library.complexity.sentinel")])
 
-@active_if(PAIRED AND PARAMS["run_estimateLibraryComplexity"])
+@active_if(PAIRED and PARAMS["run_estimateLibraryComplexity"])
 @files(estimate_library_complexity_jobs)
 def estimateLibraryComplexity(infile, sentinel):
     '''
@@ -570,19 +570,27 @@ def qcSummary(infiles, outfile):
         exclude = []
         paired_columns = '''READ_PAIRS_EXAMINED as no_pairs,
                               PERCENT_DUPLICATION as pct_duplication,
-                              ESTIMATED_LIBRARY_SIZE as library_size,
                               PCT_READS_ALIGNED_IN_PAIRS
                                        as pct_reads_aligned_in_pairs,
                               MEDIAN_INSERT_SIZE
                                        as median_insert_size,
                            '''
         pcat = "PAIR"
-
+   
     else:
         exclude = ["qc_library_complexity", "qc_insert_size_metrics"]
         paired_columns = ''
         pcat = "UNPAIRED"
 
+   if PARAMS["run_estimateLibraryComplexity"] and PAIRED:
+
+      elc_columns = '''ESTIMATED_LIBRARY_SIZE as library_size,'''
+
+   else:
+      elc_columns = ''
+   
+
+    # ESTIMATED_LIBRARY_SIZE as library_size,
 
     tables = [P.to_table(x) for x in infiles
               if P.to_table(x) not in exclude]
@@ -594,6 +602,7 @@ def qcSummary(infiles, outfile):
                                     three_prime_bias
                                        as three_prime_bias,
                                     %(paired_columns)s
+                                    %(elc_columns)s
                                     PCT_MRNA_BASES
                                        as pct_mrna,
                                     PCT_CODING_BASES
