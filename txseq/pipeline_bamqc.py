@@ -272,7 +272,7 @@ def estimate_library_complexity_jobs():
                    os.path.join("bam.qc.dir/estimate.library.complexity.dir/",
                                 sample_id + ".library.complexity.sentinel")])
 
-@active_if(PAIRED)
+@active_if(PAIRED AND PARAMS["run_estimateLibraryComplexity"])
 @files(estimate_library_complexity_jobs)
 def estimateLibraryComplexity(infile, sentinel):
     '''
