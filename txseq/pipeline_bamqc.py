@@ -568,7 +568,7 @@ def qcSummary(infiles, outfile):
     # Some QC metrics are specific to paired end data
     if PAIRED:
         exclude = []
-        paired_columns = ''  PCT_READS_ALIGNED_IN_PAIRS
+        paired_columns = '''PCT_READS_ALIGNED_IN_PAIRS
                                        as pct_reads_aligned_in_pairs,
                               MEDIAN_INSERT_SIZE
                                        as median_insert_size,
