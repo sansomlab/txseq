@@ -583,10 +583,10 @@ def qcSummary(infiles, outfile):
         pcat = "UNPAIRED"
 
     if PARAMS["run_estimateLibraryComplexity"] and PAIRED:
-       elc_columns = '''ESTIMATED_LIBRARY_SIZE as library_size,'''
+        elc_columns = '''ESTIMATED_LIBRARY_SIZE as library_size,'''
 
     else:
-       elc_columns = ''
+        elc_columns = ''
    
 
     # ESTIMATED_LIBRARY_SIZE as library_size,
