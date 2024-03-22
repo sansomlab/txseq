@@ -306,7 +306,7 @@ def estimateLibraryComplexity(infile, sentinel):
     IOTools.touch_file(sentinel)
     
 
-@active_if(PAIRED)
+@active_if(PAIRED and PARAMS["run_estimateLibraryComplexity"])
 @merge(estimateLibraryComplexity,
        "bam.qc.dir/qc_library_complexity.load")
 def loadEstimateLibraryComplexity(infiles, outfile):
