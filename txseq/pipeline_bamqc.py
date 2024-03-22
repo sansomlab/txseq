@@ -568,9 +568,7 @@ def qcSummary(infiles, outfile):
     # Some QC metrics are specific to paired end data
     if PAIRED:
         exclude = []
-        paired_columns = '''READ_PAIRS_EXAMINED as no_pairs,
-                              PERCENT_DUPLICATION as pct_duplication,
-                              PCT_READS_ALIGNED_IN_PAIRS
+        paired_columns = ''  PCT_READS_ALIGNED_IN_PAIRS
                                        as pct_reads_aligned_in_pairs,
                               MEDIAN_INSERT_SIZE
                                        as median_insert_size,
@@ -583,7 +581,10 @@ def qcSummary(infiles, outfile):
         pcat = "UNPAIRED"
 
     if PARAMS["run_estimateLibraryComplexity"] and PAIRED:
-        elc_columns = '''ESTIMATED_LIBRARY_SIZE as library_size,'''
+        elc_columns = '''ESTIMATED_LIBRARY_SIZE as library_size,
+                         READ_PAIRS_EXAMINED as no_pairs,
+                         PERCENT_DUPLICATION as pct_duplication,
+        '''
 
     else:
         elc_columns = ''
