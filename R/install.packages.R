@@ -29,9 +29,10 @@ install.package <- function(x, source="CRAN", github_repo="")
     }
 }
 
-cran_packages <- c("RColorBrewer",
-                   "dplyr",
-                    "ggplot2",
+cran_packages <- c(
+"RColorBrewer",
+"dplyr",
+"ggplot2",
 "ggrastr",
 "ggrepel",
 "gplots",
@@ -42,10 +43,12 @@ cran_packages <- c("RColorBrewer",
 "reshape2"
 )
 
-bioconductor_packages <- c("ComplexHeatmap",
-                           "genefilter",
-                           "DESeq2",
-                           "vsn")
+bioconductor_packages <- c(
+"ComplexHeatmap",
+"genefilter",
+"tximeta",
+"DESeq2",
+"vsn")
 
 github_packages <- c("gsfisher"="sansomlab/gsfisher")
 

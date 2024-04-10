@@ -195,13 +195,18 @@ def loadSalmonGeneQuant(infiles, sentinel):
 @transform([loadSalmonTranscriptQuant,
             loadSalmonGeneQuant],
            regex(r"(.*)/(.*).sentinel"),
-           r"\1/\2.tpms.txt")
+           r"\1/\2.tpms.sentinel")
 def salmonTPMs(infile, outfile):
     '''
     Prepare a wide table of salmon TPMs (samples x transcripts|genes).
     '''
 
+    t = T.setup(infile, outfile, PARAMS,
+                memory="24G",
+                cpu=1)
+
     table = P.to_table(infile.replace(".sentinel",".load"))
+    database = DATABASE
 
     if "transcript" in table:
         id_name = "transcript_id"
@@ -210,22 +215,23 @@ def salmonTPMs(infile, outfile):
     else:
         raise ValueError("Unexpected Salmon table name")
 
-    con = sqlite3.connect(DATABASE)
-    c = con.cursor()
+    statement = '''python %(txseq_code_dir)s/python/salmon_fetch_tpms.py
+                   --database=%(database)s
+                   --table=%(table)s
+                   --idname=%(id_name)s
+                   --outfile=%(out_file)s.txt.gz
+                   &> %(log_file)s
+                ''' % dict(PARAMS, **t.var, **locals())
+              
+    P.run(statement, **t.resources)
+    
+    IOTools.touch_file(outfile)
 
-    sql = '''select sample_id, Name %(id_name)s, TPM tpm
-             from %(table)s
-          ''' % locals()
-
-    df = pd.read_sql(sql, con)
-
-    df = df.pivot(index="id_name", columns=["sample_id", "tpm"])
-    df.to_csv(outfile, sep="\t", index=True, index_label=id_name)
 
 
 @jobs_limit(1)
 @transform(salmonTPMs,
-           suffix(".txt"),
+           suffix(".sentinel"),
            ".load")
 def loadSalmonTPMs(infile, outfile):
     '''
@@ -241,56 +247,41 @@ def loadSalmonTPMs(infile, outfile):
 
     opts = "-i " + id_name
 
-    P.load(infile, outfile, options=opts,
+    file_name = infile[:-len(".sentinel")] + ".txt.gz"
+
+    P.load(file_name, outfile, options=opts,
            job_memory=PARAMS["sql_himem"])
 
 
+@follows(quant)
+@files(None,"tximeta.dir/tximeta.sentinel")
+def tximeta(infile, outfile):
+    '''
+    Run tximeta to summarise counts and gene and transcript level.
+    '''
+    
+    t = T.setup(infile, outfile, PARAMS)
+    
+    geneset_path = os.path.join(PARAMS["txseq_annotations"], "api.dir/txseq.geneset.gtf.gz")
+    transcript_path = os.path.join(PARAMS["txseq_annotations"], "api.dir/txseq.transcript.fa.gz")
+    
+    statement = '''Rscript %(txseq_code_dir)s/R/tximeta.R
+                   --indexdir=%(txseq_salmon_index)s
+                   --salmondir=salmon.dir
+                   --transcripts=%(transcript_path)s 
+                   --geneset=%(geneset_path)s
+                   --organism="%(tximeta_organism)s"
+                   --genomeversion=%(tximeta_genome)s
+                   --release=%(tximeta_release)s
+                   --samples=%(samples)s
+                   --outfile=%(out_file)s.RDS
+                   &> %(log_file)s
+    ''' % dict(PARAMS, **t.var, **locals())
+              
+    P.run(statement, **t.resources)
+    
+    IOTools.touch_file(outfile)
 
-
-
-# ---------------------- Copynumber estimation ------------------------------ #
-
-#
-# TODO: use of these historical tasks is currently not supported.
-#
-# Copy number estimation based on spike-in sequences and Salmon TPMs.
-# if PARAMS["spikein_estimate_copy_numbers"] is True:
-#     run_copy_number_estimation = True
-# else:
-#     run_copy_number_estimation = False
-
-
-# @active_if(run_copy_number_estimation)
-# @follows(mkdir("copy.number.dir"), loadSalmonTPMs)
-# @files("salmon.dir/salmon.genes.tpms.txt",
-#        "copy.number.dir/copy_numbers.txt")
-# def estimateCopyNumber(infile, outfile):
-#     '''
-#     Estimate copy numbers based on standard
-#     curves constructed from the spike-ins.
-#     '''
-
-#     statement = '''Rscript %(scseq_dir)s/R/calculate_copy_number.R
-#                    --spikeintable=%(spikein_copy_numbers)s
-#                    --spikeidcolumn=gene_id
-#                    --spikecopynumbercolumn=copies_per_cell
-#                    --exprstable=%(infile)s
-#                    --exprsidcolumn=gene_id
-#                    --outfile=%(outfile)s
-#                 '''
-#     P.run(statement)
-
-
-# @active_if(run_copy_number_estimation)
-# @transform(estimateCopyNumber,
-#            suffix(".txt"),
-#            ".load")
-# def loadCopyNumber(infile, outfile):
-#     '''
-#     Load the copy number estimations to the project database.
-#     '''
-
-#     P.load(infile, outfile, options='-i "gene_id"')
 
 
 # ----------------------- Quantitation target ------------------------------ #
@@ -327,53 +318,50 @@ def loadTranscriptInfo(infile, outfile):
 @jobs_limit(1)
 @follows(mkdir("qc.dir/"), loadSalmonTPMs, loadTranscriptInfo)
 @files("salmon.dir/salmon.genes.tpms.load",
-       "qc.dir/number.genes.detected.salmon")
-def numberGenesDetectedSalmon(infile, outfile):
+       "qc.dir/number.genes.detected.salmon.sentinel")
+def numberGenesDetected(infile, outfile):
     '''
     Count no genes detected at copynumer > 0 in each sample.
     '''
 
+    t = T.setup(infile, outfile, PARAMS,
+            memory="24G",
+            cpu=1)
+
     table = P.to_table(infile)
 
-    statement = '''select distinct s.*, i.gene_biotype
-                   from %(table)s s
-                   inner join transcript_info i
-                   on s.gene_id=i.gene_id
-                ''' % locals()
+    database = DATABASE
 
-    df = DB.fetch_DataFrame(statement, DATABASE)
-
-    melted_df = pd.melt(df, id_vars=["gene_id", "gene_biotype"])
-
-    grouped_df = melted_df.groupby(["gene_biotype", "variable"])
-
-    agg_df = grouped_df.agg({"value": lambda x:
-                             np.sum([1 for y in x if y > 0])})
-    agg_df.reset_index(inplace=True)
-
-    count_df = pd.pivot_table(agg_df, index="variable",
-                              values="value", columns="gene_biotype")
-    count_df["total"] = count_df.apply(np.sum, 1)
-    count_df["sample_id"] = count_df.index
-
-    count_df.to_csv(outfile, index=False, sep="\t")
+    statement = '''python %(txseq_code_dir)s/python/salmon_no_genes_detected.py
+                   --database=%(database)s
+                   --table=%(table)s
+                   --outfile=%(out_file)s.tsv.gz
+                   &> %(log_file)s
+                ''' % dict(PARAMS, **t.var, **locals())
+              
+    P.run(statement, **t.resources)
+    
+    IOTools.touch_file(outfile)
 
 
 @jobs_limit(1)
-@files(numberGenesDetectedSalmon,
+@files(numberGenesDetected,
        "qc.dir/qc_no_genes_salmon.load")
-def loadNumberGenesDetectedSalmon(infile, outfile):
+def loadNumberGenesDetected(infile, outfile):
     '''
     Load the numbers of genes expressed to the project database.
     '''
-
-    P.load(infile, outfile,
+    
+    P.load(infile[:-len(".sentinel")] + ".tsv.gz", 
+           outfile,
            options='-i "sample_id"')
 
 
 # --------------------- < generic pipeline tasks > -------------------------- #
 
-@follows(quantitation, loadNumberGenesDetectedSalmon)
+@follows(quantitation, 
+         tximeta,
+         loadNumberGenesDetected)
 def full():
     pass
 

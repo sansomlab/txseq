@@ -18,14 +18,25 @@ txseq:
   # Path to the location where the "txseq ensembl" pipeline was run
   # to generate the sanitised genome, transcript fasta and gtf files 
   #
-  # e.g. for human: /well/kir/mirror/txseq/GRCh38.110.dir/ensembl.dir
-  # e.g. for mouse: /well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir/
+  # If working on the KIR BMRC space, use e.g.
+  #       for human: /well/kir/mirror/txseq/GRCh38.110.dir/ensembl.dir
+  #       for mouse: /well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir/
+  #
+  # For the mouse_hscs example, set to 
+  #       /my/path/to/GRCm39.110.dir/ensembl.dir/
+  #
   annotations: 
   
   # Path to the location where the "txseq salmon_index" pipeline was run
   # to generate the salmon index
-  # e.g. for human: /well/kir/projects/mirror/txseq/GRCh38.110.dir/salmon.index.dir/salmon_index
-  # e.g. for mouse: /well/kir/mirror/txseq/GRCm39.110.dir/salmon.index.dir/salmon_index
+  #
+  # If working on the KIR BMRC space, use e.g.
+  #       for human: /well/kir/projects/mirror/txseq/GRCh38.110.dir/salmon.index.dir/salmon_index
+  #       for mouse: /well/kir/mirror/txseq/GRCm39.110.dir/salmon.index.dir/salmon_index
+  #
+  # For the mouse_hscs example, set to 
+  #       /my/path/to/GRCm39.110.dir/salmon.index.dir/salmon_index
+  #
   salmon_index: 
 
 salmon:
@@ -34,3 +45,11 @@ salmon:
   
   memory: 24G
   threads: 4
+  
+tximeta:
+  # e.g. "Mus musculus" or "Homo sapiens"
+  organism:
+  # e.g. "110"
+  release:
+  # e.g. "GRCm39" or "GRCh38"
+  genome:

@@ -10,13 +10,16 @@ For this example we use paired end RNA-seq data from `Regan-Komito et al 'GM-CSF
 
 
 
-1. Getting the configuration files
-----------------------------------
+1. Getting the configuration files and report templates
+-------------------------------------------------------
 
-Clone the folders and files for the example into a suitable local folder: ::
+Make a suitable local folder and copy the folders and files for the mouse hscs example into it. Here we plan to run the example in "~/work/hscs_example", but this path may be different for you ::
 
+  mkdir ~/work/txseq_hscs_example
+  cd ~/work/txseq_hscs_example
   cp -r /path/to/txseq/examples/mouse_hscs/* .
-
+  cp -r /path/to/txseq/reports .
+  
 Edit the txseq/libraries.tsv file to point to the location of the FASTQ files retrieved from the ENA on your system.
 
 
@@ -25,31 +28,122 @@ Edit the txseq/libraries.tsv file to point to the location of the FASTQ files re
 
 .. note:: If you are working in the Kennedy workspace on the Oxford BMRC cluster, suitable indexes have already been built and this step should be skipped.
 
-#. Fetching ensembl annotations
 
+2.1 Fetching ensembl annotations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+The GRCm39 genome sequence and Ensembl 110 gene annotations can be downloaded using the provided shell script::
 
+  cd GRCm39.110.gtf.gz/ensembl.dir
+  chmod +x fetch_ensembl_genome_and_annotations
+  ./fetch_ensembl_genome_and_annotations
+
+  
+2.2 Making the sanitised genome sequences and gene annotations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Next, we need to prepare the genome sequences and gene annotations for use in RNA-sequence analysis. For details of this process please see the :doc:`Genomes and Annotations <genomesAndAnnotations>` page. First, obtain a copy of the pipeline configuration file and set the locations of the genome sequences and gene annotations appropriately ::
+
+  txseq ensembl config  # fetch a copy of the configuration file
+  emacs pipeline_ensembl.yml # edit the file as appropriate 
+
+The sanitised genome sequences and gene annotations can then be built with the following command ::
+
+  txseq ensembl make full -v 5 -p 20
+
+  
+2.3 Building the Salmon and Hisat2 indexes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  
 The example requires Salmon and Hisat2 indexes. If you need to build these, they can be built using txseq pipelines as follows.
 
-To build a salmon index cd into the "indexes/salmon" directory and edit the "pipeline_salmon_index.yml" file as appropriate. The index can then be built with following command: ::
+To build a salmon index cd into the "GRCm39.110.gtf.gz/salmon.index.dir" directory, get and edit a copy of the "pipeline_salmon_index.yml" configuration file as appropriate ::
+
+  txseq salmon_index config # fetch a copy of the configuration file
+  emacs pipeline_salmon_index.py # edit the file as appropriate
+  
+The index can then be built with following command: ::
 
   txseq salmon_index make full -v5
 
-To build a hisat2 index cd into the "indexes/hisat2" directory and edit the "pipeline_hisat_index.yml" file as appropriate. The index can then be built with following command: ::
+To build a hisat2 index cd into the "GRCm39.110.gtf.gz/salmon.index.dir" directory, get and edit a copy of the "pipeline_hisat_index.yml" file as appropriate:: 
+
+  txseq hisat_index config # fetch a copy of the configuration file
+  emacs pipeline_hisat_index.py # edit the file as appropriate
+
+The index can then be built with following command: ::
 
   txseq hisat_index make full -v5
 
 
-
-
-
-
-
-3. Setting up 
--------------
-
-
-
-4. Checking FASTQ read quality
+3. Checking FASTQ read quality
 ------------------------------
+
+First we run the `FastQC tool <https://www.bioinformatics.babraham.ac.uk/projects/fastqc/>`_ using :doc:`pipeline_fastqc.py<pipelines/pipeline_fastqc>`. Get a copy of the configuration file and edit appropriately to ensure that the correct "libraries.tsv" and "samples.tsv" files paths are set ::
+
+  cd fastqc
+  txseq fastqc config # get a copy of the default configuration file
+  emacs pipeline_fastqc.yml # edit the configuration file as appropriate
   
+The pipeline can then be run as follows ::
+
+  txseq fastqc make full -v5 -p20
+  
+The pipeline parses and store the FastQC output into sqlite database in a file called "csvdb". To visualise the results, open the associated R Markdown Report ("reports/fastqc.Rmd") in Rstudio, assign the location of the database to the "fastqc_sqlite_database" variable and knit the report.
+
+
+4. Mapping with Hisat2
+----------------------
+
+Next we map the data using :doc:`pipeline_hisat.py<pipelines/pipeline_hisat>`. Fetch and edit a copy of the configuration file to set the paths to the "libraries.tsv" and "samples.tsv" files and hisat index ::
+
+  cd hisat
+  txseq hisat config # get a copy of the default configuration file
+  emacs pipeline_hisat.yml # edit the configuration file as appropriate
+  
+The pipeline can then be run as follows ::
+
+  txseq hisat make full -v5 -p20
+
+The output BAM files are located in the "hisat.dir" sub-directory.
+
+
+5. Generating post-mapping QC statistics
+----------------------------------------
+
+After mapping with Hisat2, post-mapping QC statistics are computed using :doc:`pipeline_bamqc.py<pipelines/pipeline_bamqc>`. This pipeline runs several `Picard <https://broadinstitute.github.io/picard/>`_ tools including CollectRnaSeqMetrics, EstimateLibraryComplexity, AlignmentSummaryMetrics and CollectInsertSizeMetrics as well as some custom scripts. ::
+
+  cd bamqc
+  txseq bamqc config # get a copy of the default configuration file
+  emacs pipeline_hisat.yml # edit the configuration file as appropriate
+
+The results are saved in an sqlite database in the "csvdb" file. 
+
+6. Quantitation with FeatureCounts
+----------------------------------
+
+
+
+
+7. Quantitation with Salmon
+---------------------------
+
+To quantitate the data using :doc:`pipeline_salmon.py<pipelines/pipeline_salmon>`, begin by fetching and edit a copy of the configuration file to set the paths to the "libraries.tsv" and "samples.tsv" files and salmon index ::
+
+  cd salmon
+  txseq salmon config # get a copy of the default configuration file
+  emacs pipeline_salmon.yml # edit the configuration file as appropriate
+  
+The pipeline can then be run as follows ::
+
+  txseq salmon make full -v5 -p20
+
+
+
+
+7. Exploratory data analysis
+----------------------------
+
+
+8. DESeq2 analysis
+------------------

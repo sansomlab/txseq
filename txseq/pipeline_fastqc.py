@@ -128,7 +128,9 @@ import sqlite3
 
 import pandas as pd
 import numpy as np
+
 import sqlalchemy
+from sqlalchemy import text
 
 from cgatcore import experiment as E
 from cgatcore import pipeline as P
@@ -276,21 +278,25 @@ def loadMetadata(infile, outfile):
     
     db =sqlalchemy.create_engine('sqlite:///' + PARAMS["sqlite_file"])
 
-    S.sample_table.to_sql(name = 'samples',
-                          con= db, 
-                          index= False, 
-                          if_exists='replace') 
-    
-    from sqlalchemy import text
+    with db.connect() as dbconn:
 
-    db.execute("CREATE INDEX samples_sample_id on samples (sample_id)")
+        S.sample_table.to_sql(name = 'samples',
+                              con= dbconn, 
+                              index= False, 
+                              if_exists='replace') 
     
-    S.fastq_table.to_sql(name = 'fastqs',
-                         con= db, 
-                         index=False, 
-                         if_exists='replace') 
+    
 
-    db.execute("CREATE INDEX fastqs_fastq_id on fastqs (sample_id)")
+        dbconn.execute(text("CREATE INDEX samples_sample_id on samples (sample_id)"))
+        
+    with db.connect() as dbconn:
+    
+        S.fastq_table.to_sql(name = 'fastqs',
+                            con= dbconn, 
+                            index=False, 
+                            if_exists='replace') 
+
+        dbconn.execute(text("CREATE INDEX fastqs_fastq_id on fastqs (sample_id)"))
     
     db.dispose()
 

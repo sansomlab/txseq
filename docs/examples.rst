@@ -4,5 +4,4 @@ Examples
 .. toctree::
    :maxdepth: 2
 
-   examples/ifnb.rst
-   examples/pbmc10k.rst
+   examples/mouse_hscs.rst

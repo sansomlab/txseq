@@ -40,6 +40,19 @@ fetchFastQC <- function(qc_metric,
     colnames(data) <- gsub(" ","_", colnames(data))
     colnames(data) <- gsub("-","_", colnames(data))
     
+    # Fix issue with encode of base position.
+    # sometimes base position is encoded as a character variable that includes ranges, 
+    # e.g. c("1-10","11","12","13-20",....)
+    # to fix this, we replace the range with the start position of the range,
+    # and convert the "Base" variable to numeric
+    # i.e. so the above becomes c(1,11,12,13)
+    
+    if("Base" %in% colnames(data)) {
+    data$Base <- gsub("([^-]+).*","\\1",data$Base)
+    data$Base <- as.numeric(data$Base) }
+    
+    
+    
     data
 }
 
