@@ -20,12 +20,12 @@ sys.path.insert(1, os.path.abspath('../cellhub'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'cellhub'
-copyright = '2021, Sansom lab'
+project = 'txseq'
+copyright = '2024, Sansom lab'
 author = 'Sansom lab'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1'
+release = '1'
 
 
 # -- General configuration ---------------------------------------------------
