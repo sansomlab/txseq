@@ -4,7 +4,7 @@ Building transcriptome indexes
 Introduction
 ------------
 
-Txseq uses Hisat2 for aignment-based gene expression quantification and Salmon for quasi-alignment based gene expression quantification. To use these tools, it is first necessary to build method specific transcriptomes indexes. 
+txseq uses Hisat2 for alignment-based gene expression quantification and Salmon for quasi-alignment based gene expression quantification. To use these tools, it is first necessary to build transcriptomes indexes for each of them. 
 
 As with preparation of the sanitised genome sequences and gene annotations, it is recommended to build transcriptome indexes in a central location for use in multiple projects.
 

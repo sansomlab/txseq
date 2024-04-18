@@ -73,7 +73,6 @@ import cgatcore.iotools as IOTools
 
 # import local pipeline utility functions
 import txseq.tasks as T
-import txseq.tasks.samples as samples
 
 # ----------------------- < pipeline configuration > ------------------------ #
 
@@ -90,7 +89,7 @@ if len(sys.argv) > 1:
     if(sys.argv[1] == "make"):
         
         # set the location of the code directory 
-        S = samples.samples(sample_tsv = PARAMS["samples"],
+        S = T.samples(sample_tsv = PARAMS["samples"],
                             library_tsv = PARAMS["libraries"])
         
         # Set the database location

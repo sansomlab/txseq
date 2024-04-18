@@ -15,9 +15,8 @@ txseq provides workflows for the QC and analysis of bulk RNA-sequencing data.
    genomesAndAnnotations.rst
    buildingTranscriptomeIndexes.rst
    usage.rst
-   examples.rst
+   mouse_hscs_example.rst
    pipelines.rst
-   api.rst
    tasks.rst
    contributing.rst
 

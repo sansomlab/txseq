@@ -28,24 +28,46 @@ The following files are required:
 #. The Ensembl ncRNA FASTA sequences 
 #. PAR region definitions in BED format
 
-As an example, for the human genome the Ensembl genome and annotation files (for Ensembl release 110) could be retrieved using the following commands::
+
+The current Ensembl genome and annotation files can retrieve from the `Ensembl FTP website <http://www.ensembl.org/info/data/ftp/index.html>`.
+
+PAR region locations can be retrieved from e.g. the `Genome Reference Consortium <https://www.ncbi.nlm.nih.gov/grc/>`, e.g.
+
+
+Example 1: obtaining genome sequences and genes annotation files for analysis of human data
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The human Ensembl genome and annotation files (for Ensembl release 110) could be retrieved using the following commands::
 
     wget https://ftp.ensembl.org/pub/release-110/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
     wget https://ftp.ensembl.org/pub/release-110/gtf/homo_sapiens/Homo_sapiens.GRCh38.110.gtf.gz
     wget https://ftp.ensembl.org/pub/release-110/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz
     wget https://ftp.ensembl.org/pub/release-110/fasta/homo_sapiens/ncrna/Homo_sapiens.GRCh38.ncrna.fa.gz
-
-The PAR region locations can be retrived from e.g. the `Genome Reference Consortium <https://www.ncbi.nlm.nih.gov/grc/>`, e.g.
-
-#. For `human PAR locations <https://www.ncbi.nlm.nih.gov/grc/human>`
-#. For `mouse PAR locations <https://www.ncbi.nlm.nih.gov/grc/mouse>`
-
-The PAR coordinates should be used to prepare a bed file, for example for the GRCh38.p14 release of the human genome the (tab-separated) file should look like this::
+    
+The `human PAR coordinates <https://www.ncbi.nlm.nih.gov/grc/human>` should be used to prepare a bed file, for example for the GRCh38.p14 release of the human genome the (tab-separated) file should look like this::
 
     X	10001	2781479	PAR.1
     X	155701383	156030895	PAR.2
     Y	10001	2781479	PAR.1
     Y	56887903	57217415	PAR.2
+
+
+Example 2: obtaining genome sequences and genes annotation files for analysis of mouse data
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The mouse Ensembl genome and annotation files (for Ensembl release 110) can be retrieved using the following commands::
+
+    wget https://ftp.ensembl.org/pub/release-110/gtf/mus_musculus/Mus_musculus.GRCm39.110.gtf.gz
+    wget https://ftp.ensembl.org/pub/release-110/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz
+    wget https://ftp.ensembl.org/pub/release-110/fasta/mus_musculus/cdna/Mus_musculus.GRCm39.cdna.all.fa.gz
+    wget https://ftp.ensembl.org/pub/release-110/fasta/mus_musculus/ncrna/Mus_musculus.GRCm39.ncrna.fa.gz
+
+
+The `mouse PAR locations <https://www.ncbi.nlm.nih.gov/grc/mouse>` should be used to prepare a bed file, for example for the GRCm39 release of the mouse genome the (tab-separated) file should look like this::
+
+    X	168752755	169376592	PAR
+    Y	90757114	91355967	PAR
+
 
 
 Preparing a txseq-sanitised genome and annotations
@@ -61,7 +83,7 @@ After editing the yaml file to provide the locations of the Ensembl genome, Ense
 
     txseq ensembl make full -v5 -p20
     
-The output of the pipeline is and "api.dir" folder that contains the following files that can be used to build indexes for RNA-seq mapping and quantification tools:
+The output of the pipeline is an "api.dir" folder that contains the following files that can be used to build indexes for RNA-seq mapping and quantification tools:
 
 #. txseq.geneset.gtf.gz - the sanitised geneset
 #. txseq.genome.fa.gz - the sanitised and PAR masked genome

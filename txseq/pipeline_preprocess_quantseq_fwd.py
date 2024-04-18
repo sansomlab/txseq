@@ -71,7 +71,6 @@ import cgatcore.iotools as IOTools
 
 # import local pipeline utility functions
 import txseq.tasks as T
-import txseq.tasks.samples as samples
 
 # ----------------------- < pipeline configuration > ------------------------ #
 

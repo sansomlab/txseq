@@ -6,14 +6,14 @@ Introduction
 
 For this example we use paired end RNA-seq data from `Regan-Komito et al 'GM-CSF drives dysregulated hematopoietic stem cell activity and pathogenic extramedullary myelopoiesis in experimental spondyloarthritis' Nature Communicaitons 2020 <https://doi.org/10.1038/s41467-019-13853-4>`_. The data can be retrieved from the European Nucleotide Archive (ENA) under accession `PRJNA521342 <https://www.ebi.ac.uk/ena/browser/view/PRJNA521342>`_.
 
-.. note:: If you are working in the Kennedy workspace on the Oxford BMRC cluster, these data are already avaliable in the "/well/kir/projects/mirror/ena/PRJNA521342/" folder.
+.. note:: If you are working in the Kennedy workspace on the Oxford BMRC cluster, these data are already available in the "/well/kir/projects/mirror/ena/PRJNA521342/" folder.
 
 
 
 1. Getting the configuration files and report templates
 -------------------------------------------------------
 
-Make a suitable local folder and copy the folders and files for the mouse hscs example into it. Here we plan to run the example in "~/work/hscs_example", but this path may be different for you ::
+Make a suitable local folder and copy the samples.tsv and libraries.tsv for the "mouse_hscs" example into it. Here we plan to run the example in "~/work/hscs_example", but this path may be different for you ::
 
   mkdir ~/work/txseq_hscs_example
   cd ~/work/txseq_hscs_example
@@ -23,64 +23,29 @@ Make a suitable local folder and copy the folders and files for the mouse hscs e
 Edit the txseq/libraries.tsv file to point to the location of the FASTQ files retrieved from the ENA on your system.
 
 
-2. Preparing annotations and transcriptome indexes
---------------------------------------------------
+2. Retrieving and preparing annotations 
+----------------------------------------
 
-.. note:: If you are working in the Kennedy workspace on the Oxford BMRC cluster, suitable indexes have already been built and this step should be skipped.
-
-
-2.1 Fetching ensembl annotations
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The GRCm39 genome sequence and Ensembl 110 gene annotations can be downloaded using the provided shell script::
-
-  cd GRCm39.110.gtf.gz/ensembl.dir
-  chmod +x fetch_ensembl_genome_and_annotations
-  ./fetch_ensembl_genome_and_annotations
+.. note:: If you are working in the Kennedy workspace on the Oxford BMRC cluster, the required txseq annotations are available in the mirror folder and this step can be skipped.
+  
+Follow the instructions on the :doc:`Genomes and Annotations <genomesAndAnnotations>` page to retrieve the required files and run the "txseq ensembl" pipeline to prepare santitised annotation files for the mouse genome.
 
   
-2.2 Making the sanitised genome sequences and gene annotations
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3 Building the Salmon and Hisat2 transcriptome indexes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Next, we need to prepare the genome sequences and gene annotations for use in RNA-sequence analysis. For details of this process please see the :doc:`Genomes and Annotations <genomesAndAnnotations>` page. First, obtain a copy of the pipeline configuration file and set the locations of the genome sequences and gene annotations appropriately ::
+.. note:: If you are working in the Kennedy workspace on the Oxford BMRC cluster, txseq mouse transcriptome indexes have already been built in the mirror folder and this step can be skipped.
 
-  txseq ensembl config  # fetch a copy of the configuration file
-  emacs pipeline_ensembl.yml # edit the file as appropriate 
-
-The sanitised genome sequences and gene annotations can then be built with the following command ::
-
-  txseq ensembl make full -v 5 -p 20
-
-  
-2.3 Building the Salmon and Hisat2 indexes
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  
-The example requires Salmon and Hisat2 indexes. If you need to build these, they can be built using txseq pipelines as follows.
-
-To build a salmon index cd into the "GRCm39.110.gtf.gz/salmon.index.dir" directory, get and edit a copy of the "pipeline_salmon_index.yml" configuration file as appropriate ::
-
-  txseq salmon_index config # fetch a copy of the configuration file
-  emacs pipeline_salmon_index.py # edit the file as appropriate
-  
-The index can then be built with following command: ::
-
-  txseq salmon_index make full -v5
-
-To build a hisat2 index cd into the "GRCm39.110.gtf.gz/salmon.index.dir" directory, get and edit a copy of the "pipeline_hisat_index.yml" file as appropriate:: 
-
-  txseq hisat_index config # fetch a copy of the configuration file
-  emacs pipeline_hisat_index.py # edit the file as appropriate
-
-The index can then be built with following command: ::
-
-  txseq hisat_index make full -v5
+The example requires Salmon and Hisat2 indexes. To build these, follow the :doc:`Building transcriptome indexes <buildingTranscriptomeIndexes>` instructions.
 
 
-3. Checking FASTQ read quality
+4. Checking FASTQ read quality
 ------------------------------
 
 First we run the `FastQC tool <https://www.bioinformatics.babraham.ac.uk/projects/fastqc/>`_ using :doc:`pipeline_fastqc.py<pipelines/pipeline_fastqc>`. Get a copy of the configuration file and edit appropriately to ensure that the correct "libraries.tsv" and "samples.tsv" files paths are set ::
 
+  cd ~/work/txseq_hscs_example
+  mkdir fastqc
   cd fastqc
   txseq fastqc config # get a copy of the default configuration file
   emacs pipeline_fastqc.yml # edit the configuration file as appropriate
@@ -92,11 +57,13 @@ The pipeline can then be run as follows ::
 The pipeline parses and store the FastQC output into sqlite database in a file called "csvdb". To visualise the results, open the associated R Markdown Report ("reports/fastqc.Rmd") in Rstudio, assign the location of the database to the "fastqc_sqlite_database" variable and knit the report.
 
 
-4. Mapping with Hisat2
+5. Mapping with Hisat2
 ----------------------
 
 Next we map the data using :doc:`pipeline_hisat.py<pipelines/pipeline_hisat>`. Fetch and edit a copy of the configuration file to set the paths to the "libraries.tsv" and "samples.tsv" files and hisat index ::
 
+  cd ~/work/txseq_hscs_example
+  mkdir hisat
   cd hisat
   txseq hisat config # get a copy of the default configuration file
   emacs pipeline_hisat.yml # edit the configuration file as appropriate
@@ -113,6 +80,8 @@ The output BAM files are located in the "hisat.dir" sub-directory.
 
 After mapping with Hisat2, post-mapping QC statistics are computed using :doc:`pipeline_bamqc.py<pipelines/pipeline_bamqc>`. This pipeline runs several `Picard <https://broadinstitute.github.io/picard/>`_ tools including CollectRnaSeqMetrics, EstimateLibraryComplexity, AlignmentSummaryMetrics and CollectInsertSizeMetrics as well as some custom scripts. ::
 
+  cd ~/work/txseq_hscs_example
+  mkdir bamqc
   cd bamqc
   txseq bamqc config # get a copy of the default configuration file
   emacs pipeline_hisat.yml # edit the configuration file as appropriate
@@ -129,6 +98,8 @@ The results are saved in an sqlite database in the "csvdb" file.
 
 Count tables can be extracted from the BAM file using :doc:`pipeline_feature_counts.py<pipelines/pipeline_feature_counts>`.
 
+  cd ~/work/txseq_hscs_example
+  mkdir feature_counts
   cd feature_counts
   txseq feature_counts config # get a copy of the default configuration file
   emacs pipeline_hisat.yml # edit the configuration file as appropriate
@@ -145,6 +116,8 @@ The results are saved in an sqlite database in the "csvdb" file.
 
 To quantitate the data using :doc:`pipeline_salmon.py<pipelines/pipeline_salmon>`, we begin by fetching and edit a copy of the configuration file to set the paths to the "libraries.tsv" and "samples.tsv" files and salmon index ::
 
+  cd ~/work/txseq_hscs_example
+  mkdir salmon
   cd salmon
   txseq salmon config # get a copy of the default configuration file
   emacs pipeline_salmon.yml # edit the configuration file as appropriate
@@ -169,7 +142,7 @@ This analysis helps to identify confounding technical sources of variation.
 9. Exploratory analysis
 -----------------------
 
-After running :doc:`pipeline_salmon.py<pipelines/pipeline_salmon>` the similarity between the samples in gene-expression space can be explored using the "exploratory.Rmd" R Markdown report template.
+After running :doc:`pipeline_salmon.py<pipelines/pipeline_salmon>` the similarity between the samples in gene-expression space can be explored using the "exploratory_data_analysis.Rmd" R Markdown report template.
 
 Make a copy of this file and open it in Rstudio to perform the analysis. The report produces plots showing hierarchical clustering of the samples by correlation of their expression profiles, the results of principle components analysis and a UMAP project of the samples.
 
@@ -178,3 +151,8 @@ Together with the post-mapping QC report this analysis is useful for the identif
 
 10. DESeq2 analysis
 -------------------
+
+
+After running :doc:`pipeline_salmon.py<pipelines/pipeline_salmon>` differential expression analysis can be performed using the "differential_expression.Rmd" R Markdown report template.
+
+Make a copy of this file and open it in Rstudio to perform the analysis. 

@@ -8,16 +8,12 @@ Core components:
 
 * `parameters`_
 * `setup`_
-* `api`_
+* `samples`_
 
 Pipeline specific components:
 
-* `cellbender`_
-* `celldb`_
-* `cellranger`_
-* `cellxgene`_
-* `cluster`_
-* `dehash`_
+* `readqc`_
+
 
 '''
 
@@ -26,4 +22,4 @@ Pipeline specific components:
 
 from txseq.tasks.setup import *
 from txseq.tasks.parameters import *
-from txseq.tasks.api import *
+from txseq.tasks.samples import *
