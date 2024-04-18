@@ -1,15 +1,17 @@
 ---
-title: "Post mapping QC analysis"
+title: "txseq: Post-mapping quality control analysis"
 header-includes: #allows you to add in your own Latex packages
 - \usepackage{float} #use the 'float' package
 - \floatplacement{figure}{H} #make every figure with caption = h
 output:
-  pdf_document:
-    fig_caption: true
-    keep_tex: true
-    latex_engine: xelatex
   html_document:
-    df_print: paged
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: spacelab
+    highlight: tango
+    fig_caption: true
+    code_folding: hide
 urlcolor: blue
 ---
 
@@ -18,11 +20,10 @@ knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(cache = TRUE)
 knitr::opts_chunk$set(warning = FALSE)
 knitr::opts_chunk$set(out.extra = '')
-#knitr::opts_chunk$set(fig.pos = 'H')
 ```
 
 
-```{r include=FALSE, echo=FALSE}
+```{r message=FALSE}
 library(ggplot2)
 library(gridExtra)
 library(DESeq2)
@@ -32,84 +33,194 @@ library(vsn)
 library(gplots)
 library(knitr)
 library(txseq)
-source("rnaseq.config.R")
+library(ggrepel)
+library(psych)
+library(ComplexHeatmap)
+
+```
+
+# Report configuration
+
+```{r}
+# Report configuration
+
+setwd("~/work/txseq/hsc_example/reports")
+
+# Set the location of the txseq project run
+txseq_run = "~/work/txseq/hsc_example"
+
+# If you have used non-standard folder names you may need
+# to also edit these paths.
+sample_table = file.path(txseq_run,"samples.tsv")
+fastqc_db = file.path(txseq_run, "fastqc/csvdb")
+bamqc_db = file.path(txseq_run, "bamqc/csvdb")
+salmon_db =  file.path(txseq_run, "salmon/csvdb")
+
+# configure the plots
+# each variable should be set to either
+# (a) a value recognised by ggplot OR
+# (b) the name of a variable present in the samples.tsv file
+plot_color="cell_type"    #e.g. "timepoint"
+plot_shape="condition"    #e.g. "knockdown"
+plot_label="replicate"    #e.g."replicate"
+
+#
+exclude <- c()
+experiment_groups <- c("cell_type","condition")
+plot_groups <- c("cell_type","condition")
+nreplicates=2
 ```
 
 
 ```{r include=FALSE, echo=FALSE}
-
+# Build a data frame of QC data.
 statement <- 'select * from qc_summary'
 
-qc_data <- fetch_DataFrame(statement, scseq_db)
+qc_data <- fetch_DataFrame(statement, bamqc_db)
 
 # add grouping information
 qc_data <- setGroup(qc_data,"experiment_group",experiment_groups)
 qc_data <- setGroup(qc_data,"plot_group",plot_groups)
 
-df <- melt(qc_data, id.vars <- c("sample_id", "pct_reads_aligned",
-                               "plot_group", name_field_titles), 
-             measure.vars <- c("total_reads",
-                        "pct_duplication",
-                        "salmon_no_genes_pc",
-                        "featurecounts_no_genes_pc",
-                        "fraction_spliced",
-                        "library_size",
-                        "three_prime_bias",
-                        "pct_adapter",
-                        "median_insert_size"))
+salmon_ngenes_stat <- "select * from qc_no_genes_salmon"
+salmon_qc_data <- fetch_DataFrame(salmon_ngenes_stat, salmon_db)
+rownames(salmon_qc_data) <- salmon_qc_data$sample_id
+
+qc_data$no_pc_genes_detected <- salmon_qc_data[qc_data$sample_id,"protein_coding"]
+
+adapt_stat <- "select * from fastqc_adapter_content"
+adapt_data <- fetch_DataFrame(adapt_stat, fastqc_db)
+adapt_data$track <- NULL
+
+x <- melt(adapt_data, id.vars = c("sample_id","Position"))
+
+x <- x %>% group_by(sample_id) %>% summarise(max_adapter_pct=max(value))
+
+x <- data.frame(x)
+rownames(x) <- gsub("_1_1_END1","",x$sample_id)
+
+qc_data$fastqc_adapter_pct <- x[qc_data$sample_id,"max_adapter_pct"]
+
+
+dup_stat <- "select * from fastqc_sequence_duplication_levels"
+
+dup_data <- fetch_DataFrame(dup_stat, fastqc_db)
+dup_data <- dup_data[ dup_data$`Duplication Level`==1,]
+rownames(dup_data) <- gsub("_1_1_END1","",dup_data$sample_id)
+
+qc_data$pct_seqs_duplicated <- 100 - dup_data[qc_data$sample_id,"Percentage of deduplicated"]
 
 # load in the sample information
 statement = 'select * from sample_information'
-sample_info = fetch_DataFrame(statement, scseq_db)
+sample_info = read.table(sample_table, header=T, sep="\t")
 
 # add grouping information
 sample_info <- setGroup(sample_info,"experiment_group",experiment_groups)
 sample_info <- setGroup(sample_info,"plot_group",plot_groups)
-rownames(sample_info) <- sample_info$sample_id
 
+rownames(sample_info) <- sample_info$sample_id
+sample_info$sample_id <- NULL
 
 ```
 
-# Post-mapping QC analysis
+# Introduction
 
-## Introduction
+Read alignment, quantification and post-mapping QC was performed using the [txseq pipelines](https://github.com/snsansom/txseq).
 
-Read alignment, quantification and post-mapping QC was performed using pipeline_scrnaseq.py from the [scseq code collection](https://github.com/snsansom/scseq).
+# Visualisation of selected QC metrics
 
-## Selected QC metrics
+## Barplots of selected QC metrics
 
-The scatter plots show a selection of key QC metrics.
+Key QC metrics are visualised in the barplots.
 
-```{r pmqc-metrics, fig.cap='Selected QC metrics: each metric is plotted against the fraction of reads aligning (x axis)', fig.height=6, fig.width=10,  echo=FALSE, message=FALSE}
+```{r pmqc-metrics, fig.height=12, fig.width=14,  echo=FALSE, message=FALSE}
 
-gp <- ggplot(df, aes_string("pct_reads_aligned", "value", 
-                            color=plot_color, 
-                            shape=plot_shape, 
-                            label=plot_label)) 
-gp <- gp + geom_text(aes_string(label=plot_label), size=2, nudge_x=0.0002, color="grey")
-gp <- gp + geom_point(size=2)
-gp <- gp + facet_wrap(~variable, scales="free")
+qcvars <- c("total_reads","fraction_spliced",
+            "three_prime_bias","pct_mrna","pct_coding",
+            "pct_reads_aligned","pct_pf_reads_aligned_hq",
+            "no_pc_genes_detected","fastqc_adapter_pct","pct_seqs_duplicated")
+
+df <- melt(qc_data, id.vars <- c("sample_id"), 
+             measure.vars <- qcvars)
+
+df <- cbind(df,sample_info[df$sample_id,])
+
+gp <- ggplot(df, aes(sample_id,value, fill=cell_type)) 
+gp <- gp + geom_col(width=0.4)
+gp <- gp + facet_wrap(~variable, scales="free",ncol=3)
+gp <- gp + theme_bw() 
+gp <- gp + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+# to turn off x axis labels: + theme(axis.text.x=element_blank())
 
 print(gp)
 
 ```
 
-\clearpage
 
-## PCA of samples by QC metrics
+## Selected QC metrics vs fraction of reads aligning (x axis)
+
+Next we investigate the relationship between the percentage of reads aligned and the other qc metrics.
+
+
+```{r pmqc-metrics-scatter, fig.height=12, fig.width=14,  echo=FALSE, message=FALSE}
+
+df <- melt(qc_data, id.vars <- c("sample_id", "replicate", "pct_reads_aligned",
+                               "plot_group",plot_groups), 
+             measure.vars <- qcvars)
+
+gp <- ggplot(df, aes_string("pct_reads_aligned", "value", 
+                            color=plot_color, 
+                            shape=plot_shape, 
+                            label=plot_label)) 
+gp <- gp + geom_text_repel(aes_string(label=plot_label), size=4, nudge_x=0.0002, color="grey")
+gp <- gp + geom_point(size=3)
+gp <- gp + facet_wrap(~variable, scales="free",ncol=2)
+gp <- gp + theme_bw()
+
+print(gp)
+
+```
+
+
+## Heatmap of selected QC metrics 
+
+Hierarchical clustering of samples and QC metrics helps to identify co-linearity between the QC metrics and potentially problematic samples.
+
+```{r qc-metrics-heatmap, fig.height=6, fig.width=6,  echo=FALSE, message=FALSE}
+
+qcvars <- c("total_reads",
+            "fraction_spliced",
+            "three_prime_bias",
+            "pct_mrna",
+            "pct_coding",
+            "pct_reads_aligned",
+            "pct_pf_reads_aligned_hq",
+            "no_pc_genes_detected",
+            "fastqc_adapter_pct",
+            "pct_seqs_duplicated")
+
+qcmetrics <- qc_data[,qcvars]
+rownames(qcmetrics) <- qc_data$sample_id
+
+m <- scale(qcmetrics)
+
+# Visualise the data using ComplexHeatmap
+Heatmap(m,
+        row_names_gp = gpar(fontsize = 7),
+        column_names_gp = gpar(fontsize = 7),
+        )
+
+```
+
+
+
+## Principle components analysis of samples based on the selected QC metrics
 
 Principle components analysis is used to compare the samples by their QC metrics.
 
+```{r pmqc-pca, fig.height=6, fig.width=10,  echo=FALSE, message=FALSE}
 
-```{r pmqc-pca, fig.cap='Principle components analysis is used to compare the samples by their QC metrics..', fig.height=6, fig.width=10,  echo=FALSE, message=FALSE}
-
-# Exclude due to absence of spike-ins....
-exclude <- c("fraction_spike", "nreads_uniq_map_spike")
-
-data <- qc_data[,!colnames(qc_data) %in% c(name_field_titles, "sample_id", "plot_group", "experiment_group", exclude)]
-
-rownames(data) <- qc_data$sample_id
-rownames(sample_info) <- sample_info$sample_id
+data <- qcmetrics 
 
 pca <- prcomp(data,scale=T)
 
@@ -118,11 +229,12 @@ gps <- ggplot_prcomp(pca,
                  sample_info, 
                  color=plot_color, 
                  shape=plot_shape,
-                 label=plot_label, size=2)
+                 label="none", size=2)
 
 grid.arrange(grobs=gps,ncol=2)
 ```
 
+The QC factors that explain the principle components can be identified by looking at the principle components loadings.
 
 ```{r pmqc-pca-loadings,  echo=FALSE, message=FALSE, eval=TRUE}
 
@@ -136,7 +248,6 @@ for(comp in c("PC1","PC2","PC3"))
         this <- r[rev(order(abs(r[[comp]])))[1:n],comp,drop=FALSE]
         colnames(this) <- "value"
         this$component <- comp
-        #this$qc_metric <- rownames(this)
         if(begin==T) { loadings <- this; begin=F } else { loadings <- rbind(loadings,this)}
         
     }
@@ -144,4 +255,110 @@ for(comp in c("PC1","PC2","PC3"))
 loadings <- loadings[,c("component","value")]
 kable(loadings, caption="The top loadings for the first three principle components")
 ```
+
+
+# Investigating the association of QC metrics with variation in gene expression
+
+Sometimes differences in QC metrics can explain variation in gene expression between samples. In such cases, this can be addressed by fitting the problematic factors in linear models (e.g. for differential gene expression analysis), or by regressing the factors out of the data (e.g. for data visualisation purposes) using the Limma removeBatchEffect function.
+
+
+## Principle components analysis of the gene expression data
+
+First, we use DESeq2 to normalise the data and perform a basic principle components analysis of variation in gene expression between the samples.
+
+```{r exp-pca-exprs, fig.cap='Principle components analysis of samples based on expressed genes', fig.height=6, fig.width=10,  echo=FALSE, message=FALSE}
+
+edata <- readRDS(file.path(txseq_run,"salmon/tximeta.dir/tximeta.RDS"))
+dds <- DESeqDataSet(edata$gse, design = ~1) #~1 means no design
+dds <- estimateSizeFactors(dds) 
+vstMat <- assay(varianceStabilizingTransformation(dds, blind=TRUE, fitType="local"))
+lq <- quantile(vstMat,0.25)
+filteredVSTMat <- vstMat[apply(vstMat,1,function(x) sum(x[x>lq])>=nreplicates),]
+pca <- prcomp(t(filteredVSTMat))
+
+gps <- ggplot_prcomp(pca, 
+             plots=list("A"=c("PC1","PC2"), 
+                        "B"=c("PC3","PC4"), 
+                        "C"=c("PC5","PC6")),
+             sample_info, 
+             color=plot_color, 
+             shape=plot_shape,
+             label=plot_label,
+             size=2,
+             nudge_scale_factor=20)
+
+grid.arrange(grobs=gps,ncol=2)
+
+```
+
+
+## Correlation of QC metrics with gene-space principle components
+
+To find QC metrics associated with sample variation in gene expression we correlate the metrics againts the gene-space princple components. It is important to also include biological factors of interest in this analysis so that the most important sources of variation can be understood.
+
+The heatmap shows the spearman correlation (stars indicate nominal p-values).
+
+```{r echo=FALSE, message=FALSE}
+
+# Construct a numeric matrix of QC scores and biological factors for each of the samples.
+qc_and_biological_factors <- cbind(qcmetrics, sample_info[rownames(qcmetrics), c("condition","cell_type")])
+
+# Encode categorical factors as e.g. binary numeric variables in order to perform the
+# correlation analysis
+qc_and_biological_factors$condition[qc_and_biological_factors$condition=="curdlan"] <- 0
+qc_and_biological_factors$condition[qc_and_biological_factors$condition=="sscontrol"] <- 1
+
+qc_and_biological_factors$is_lthsc <- qc_and_biological_factors$cell_type
+qc_and_biological_factors$is_lthsc[qc_and_biological_factors$is_lthsc!="lthsc"] <- 0
+qc_and_biological_factors$is_lthsc[qc_and_biological_factors$is_lthsc=="lthsc"] <- 1
+
+
+qc_and_biological_factors$cell_type <- NULL
+
+qc_and_biological_factors$is_lthsc<- as.numeric(qc_and_biological_factors$is_lthsc)
+qc_and_biological_factors$condition <- as.numeric(qc_and_biological_factors$condition)
+```
+
+
+```{r r all-metrics-heatmap, fig.height=5, fig.width=8,  echo=FALSE, message=FALSE}
+
+# Perform the correlation analysis
+
+m <- corr.test(pca$x[,1:10],qc_and_biological_factors,method="spearman",adjust="none")
+
+metric_type <- rep("technical", ncol(m$r))
+names(metric_type) <- colnames(m$r)
+metric_type[!names(metric_type) %in% qcvars] <- "biological"
+
+
+ha = HeatmapAnnotation(metric_type = metric_type,
+    col = list(metric_type = c("technical" = "darkgrey", "biological" = "darkgreen")))
+
+
+Heatmap(m$r,
+        bottom_annotation = ha,
+        cluster_rows=FALSE,
+        name="spearman\ncorrelation",
+        row_names_gp = gpar(fontsize = 7),
+        column_names_gp = gpar(fontsize = 7),
+        cell_fun = function(j, i, x, y, w, h, fill) {
+                         if(m$p.adj[i, j] < 0.001) {
+        grid.text("***", x, y)
+    } else if(m$p.adj[i, j] < 0.01) {
+        grid.text("**", x, y)
+    } else if(m$p.adj[i, j] < 0.05) {
+        grid.text("*", x, y) }
+    
+})
+
+```
+
+# Session Information
+
+```{r}
+sessionInfo()
+```
+
+
+
 

@@ -4,9 +4,15 @@
 \alias{de_heatmap}
 \title{Make a heatmap of DE genes}
 \usage{
-de_heatmap(exprs_matrix, interesting_genes, annotation,
-  key_label = "expression level", mar = c(10, 10), cexRow = 1,
-  cexCol = 1)
+de_heatmap(
+  exprs_matrix,
+  interesting_genes,
+  annotation,
+  key_label = "expression level",
+  mar = c(10, 10),
+  cexRow = 1,
+  cexCol = 1
+)
 }
 \description{
 Make a heatmap of DE genes

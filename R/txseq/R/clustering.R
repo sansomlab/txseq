@@ -91,6 +91,8 @@ labelClusters <-function(clust, title, k=10, min_size=100)
 #' @param iseed pvclust arg
 #' @param quiet pvclust arg
 #' 
+#' @import cba
+#'
 #' @export
 #' 
 parPvclust_opt <- function(cl=NULL, data, method.hclust="average",
@@ -98,8 +100,6 @@ parPvclust_opt <- function(cl=NULL, data, method.hclust="average",
                            nboot=1000, r=seq(.5,1.4,by=.1), store=FALSE, weight=FALSE,
                            init.rand=NULL, iseed=NULL, quiet=FALSE)
 {
-
-    require(cba)
     pkg.ver <- parallel::clusterCall(cl, packageVersion, pkg = "pvclust")
     r.ver <- parallel::clusterCall(cl, getRversion)
     if (length(unique(pkg.ver)) > 1 || length(unique(r.ver)) >
@@ -177,8 +177,16 @@ parPvclust_opt <- function(cl=NULL, data, method.hclust="average",
 }
 
 
-#' function to return a cluster dendrogram
+#' Function to return a clustered dendrogram
 #' with optional optimised leaf order.
+#'
+#' @param optimise Should the dendrogram leaf order be optimised (TRUE|FALSE) 
+#' @param dist_method The distance method, passed to the "dist" function
+#' @param clust_method The clustering method, passed to the "hclust" function
+#' @param p The "p" parameter for the "minkowski" distance metric
+#'
+#' @import dendsort
+#'
 #' @export
 get_den <- function(m,
                     optimize=F,

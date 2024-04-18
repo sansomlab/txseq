@@ -1,0 +1,401 @@
+---
+title: "txseq: Differential gene expresssion analysis report"
+header-includes: #allows you to add in your own Latex packages
+- \usepackage{float} #use the 'float' package
+- \floatplacement{figure}{H} #make every figure with caption = h
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: spacelab
+    highlight: tango
+    fig_caption: true
+    code_folding: hide
+urlcolor: blue
+---
+
+```{r deseq2-setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(out.extra = '')
+```
+
+
+```{r message=FALSE}
+library(ggplot2)
+suppressPackageStartupMessages(library(circlize))
+library(gridExtra)
+library(DESeq2)
+library(reshape2)
+library(dplyr)
+library(vsn)
+library(gplots)
+library(knitr)
+library(openxlsx)
+library(genefilter)
+library(pander)
+library(ggrepel)
+library(ComplexHeatmap)
+library(txseq)
+```
+
+
+```{r include=FALSE, echo=FALSE}
+# Report configuration
+
+setwd("~/work/txseq/hsc_example/reports/")
+
+# Set the location of the txseq project run
+txseq_run = "~/work/txseq/hsc_example"
+
+# If you have used non-standard folder names you may need
+# to also edit these paths.
+salmon_db =  file.path(txseq_run, "salmon/csvdb")
+
+# Set the location_function and fit type
+location_function = "median"
+fit_type = "local"
+
+# Threshold for significance
+p_value_threshold <- 0.05
+
+# Effect size threshold
+abs_fc_threshold <- 1.5
+```
+
+
+```{r include=FALSE, echo=FALSE}
+
+# Load the TPM data and gene annotations
+
+# load annotation data
+statement = 'select distinct gene_id, gene_name, gene_biotype from transcript_info'
+ann_df = fetch_DataFrame(statement, salmon_db)
+ann_df$gene_name[is.na(ann_df$gene_name)] <- ann_df$gene_id[is.na(ann_df$gene_name)]
+rownames(ann_df) <- ann_df$gene_id
+
+
+# load in the tpms (for heatmaps)
+tpms = fetch_DataFrame("select * from salmon_genes_tpms", salmon_db)
+rownames(tpms) <- tpms$gene_id
+tpms$gene_id <- NULL
+tpms <- upperQuartileNormalise(tpms)
+```
+
+
+
+```{r include=FALSE, echo=FALSE}
+
+# Load the expression data, metadata and gene annotations
+
+# ** The workflow shown here assumes that we have counts from fragments of full length RNA
+#    and not e.g. 3' lexogen data. **
+#
+# From the DESeq2 vignette:
+#   If you have 3’ tagged RNA-seq data, then correcting the counts for gene length will induce a bias in your analysis, 
+#   because the counts do not have length bias. Instead of using the 
+#   default full-transcript-length pipeline, we recommend to use the original counts, e.g. txi$counts as a counts matrix, 
+#   e.g. providing to DESeqDataSetFromMatrix or to the edgeR or # limma functions without calculating an offset and 
+#   without using countsFromAbundance.
+
+# Load in the tximeta file containing the count data from Salmon
+edata <- readRDS(file.path(txseq_run,"salmon/tximeta.dir/tximeta.RDS"))
+
+# Extract the gene-level data
+gse <- edata$gse
+
+
+# set a grouping variable which combines cell type and condition
+colData(gse)$group <- factor(paste(colData(gse)$cell_type,colData(gse)$condition,sep="_"))
+
+# Make the DESeq2 dataset
+dds <- DESeqDataSet(gse,
+                    design=formula("~group"))
+
+
+# Use a txseq R library function to pre-filter the data
+dds <- filterDESeqDatasetByGroup(dds,
+                                 grouping_var="group",
+                                 min_replicates=2,
+                                 min_counts=5)
+
+```
+
+
+# Introduction
+
+Differential expression testing was performed using the [DESeq2](http://www.bioconductor.org/packages/release/bioc/html/DESeq2.html) package.
+
+# DESeq2 parameter selection
+
+## Selection of method for estimating the location of the size factors
+
+The figure shows a comparison of median and shorth methods for size-factor location estimation.
+
+```{r de-location,  fig.height=6, fig.width=10,  echo=FALSE, message=FALSE}
+
+# compare the median and shorth methods for estimating location
+d <- counts(dds)
+
+# exclude genes with 0 counts
+d <- d[apply(d,1,function(x) min(x) > 0),]
+
+# geometric mean function - note that missing values/nas are not expected!
+gm <- function(x) { exp(sum(log(x)) / length(x)) }
+
+# get the geometric means
+gms <- apply(d,1, gm)
+
+# get the ratios
+r <- d/gms
+
+
+
+# estimate the locations
+meds <- apply(r,2,median)
+shs <- apply(r,2,shorth)
+loc_df <- data.frame(median=meds, shorth=shs,sample=names(meds))
+
+# plot the fits
+mr <- melt(r)
+colnames(mr) <- c("gene_id","sample","value")
+
+gp <- ggplot(mr, aes(value)) + geom_freqpoly()
+gp <- gp + geom_vline(data=loc_df, aes(xintercept=median),color="red")
+gp <- gp + geom_vline(data=loc_df, aes(xintercept=shorth),color="blue")
+gp <- gp + scale_x_continuous(trans="log2")#, limits=c(0.25,4))
+gp <- gp + facet_wrap(~sample)
+gp <- gp + xlab("Per-gene size factors. Red line: median, Blue line: shorth")
+gp <- gp + theme_light()
+
+print(gp)
+
+```
+
+Based on these plots, we choose to use the median as the best estimator of the location.
+
+
+## Selection of method for fitting expression-level variance relationship
+
+The figure shows a comparison of local and parametric fits for modelling the expression level-variance relationship
+
+```{r de-fittype, fig.height=4, fig.width=10,  echo=FALSE, message=FALSE}
+
+dds_test <- dds
+
+par(mfrow=c(1,2))
+
+    for(fitType in c("local","parametric"))
+    {
+        dds_test <- estimateSizeFactors(dds_test, locfunc=match.fun(location_function))
+        dds_test <- estimateDispersions(dds_test, fitType=fitType)
+
+        plot_title = paste0("locfunc: ",location_function,", fit-type: ",fitType)
+        plotDispEsts(dds_test, main=plot_title)
+
+    }
+```
+
+Based on the plots, we choose to use a local fit.
+
+
+# Identification of genes differentially expressed in multi-potent progenitors
+
+Next we run a test for genes differentially expressed between multipotent progenitors in steady state vs curdlan treatment. 
+
+```{r de-run-analysis, echo=FALSE, message=FALSE}
+
+# Set the correct reference level
+dds$group <- relevel(dds$group, ref = "lthsc_sscontrol")
+
+# Estimate the size factors, dispersions and run a Wald test
+dds <- estimateSizeFactors(dds, locfunc=match.fun(location_function))
+dds <- estimateDispersions(dds, fitType=fit_type)
+dds <- nbinomWaldTest(dds)
+
+# Check the results names
+resultsNames(dds)
+
+# Shrink the fold-changes for visualisation and gene-ranking purposes
+resLFC <- lfcShrink(dds, coef="group_lthsc_curdlan_vs_lthsc_sscontrol", type="apeglm")
+
+res <- resLFC
+
+res$gene_name = ann_df[rownames(res), "gene_name"]
+res$gene_id <- rownames(res)
+
+
+```
+
+## Data normalisation
+
+The normalisation of the data and model fit is first checked.
+
+```{r fig.width=6, fig.height=5,  echo=F}
+
+# If using DESeqDataSetFromMatrix, e.g. without length correction,
+# simply extract the size factors with:
+#    SFs <- sizeFactors(dds)
+SFs <- colMeans(normalizationFactors(dds))
+size_df <- as.data.frame(SFs, drop = F)
+s <- rownames(size_df)
+size_df$samples <- factor(s, levels = s[order(size_df$SFs)])
+gp <- ggplot(size_df, aes(samples, SFs)) + geom_bar(stat = "identity")
+gp <- gp + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+    xlab("")
+gp <- gp + ylab("normalisation/size factor") 
+sf_plot <- gp
+
+# inspect the normalisation
+norm_plots <- plotDensities(counts(dds,normalized=T), 
+                            colData(dds),
+                            "condition", "normalised counts (log2)")
+
+gps <- list(norm_plots$den, norm_plots$bp, sf_plot)
+grid.arrange(grobs=gps, nrows=2,ncol=2)
+
+```
+
+
+## Model fit and independent filtering plots
+
+```{r fig.width=10, fig.height=4, echo=FALSE, message=FALSE, warning=FALSE}
+
+par(mfrow=c(1,2))
+
+# plot the dispersion-expression level model fit
+plotDispEsts(dds)
+
+# plot the independent filtering model fit
+plot(metadata(res)$filterNumRej, type = "b", ylab = "number of rejections", 
+        xlab = "quantiles of filter")
+lines(metadata(res)$lo.fit, col = "red")
+abline(v = metadata(res)$filterTheta)
+```
+
+## Numbers of DE genes identified
+
+```{r include=FALSE, echo=FALSE}
+
+
+
+tt <- res
+tt <- tt[!is.na(tt$padj),]
+write.table(tt,"tt.salmon.tsv",col.names=T,row.names=F,sep="\t",quote=F)
+
+nup <- dim(tt[tt$padj< p_value_threshold & tt$log2FoldChange> log2(abs_fc_threshold),])[1]
+ndown <- dim(tt[tt$padj< p_value_threshold & tt$log2FoldChange< -log2(abs_fc_threshold),])[1]
+
+summary_mat <- matrix(c("deseq_results", nup, ndown),nrow=1)
+summary <- data.frame(summary_mat)
+
+colnames(summary) <- c("comparison","n_up","n_down")
+rownames(summary) <- summary$comparison
+summary$comparison <- NULL
+
+kable(summary,caption=paste(
+	"Numbers of differentially expressed genes (padj < ",
+	 p_value_threshold,
+	", fold change > ",
+	abs_fc_threshold,
+	")"
+))
+```
+
+
+## MA and volcano plots of DE genes
+
+The figure show the differentially expressed genes visualised on an MA plot (left) and a volcano plot (right).
+
+```{r fig.width=10, fig.height=5, echo=FALSE}
+
+# get the identifiers of genes to highlight.
+interesting_genes <- get_interesting(tt,
+                                    p_value_threshold=p_value_threshold,
+                                    n=10,
+                                    p_col="padj",
+                                    fc_col="log2FoldChange")
+
+par(mfrow=c(1,2))
+deplots <- de_plots(data.frame(tt),
+               interesting_genes=interesting_genes,
+               abs_fc_threshold=abs_fc_threshold)
+
+grid.arrange(grobs=(list(deplots$ma, deplots$volcano)), ncol=2)
+ 
+```
+## Heatmap of top differentially expressed genes
+
+```{r , fig.width=4, fig.height=10, echo=FALSE, warning=FALSE, message=FALSE}
+
+# Extract a list of the samples included in the contrast of interest
+samples <- colData(dds)$sample_id[colData(dds)$group %in% c("lthsc_sscontrol","lthsc_curdlan")]
+samples <- samples[order(samples)]
+
+data <- log2(tpms[interesting_genes, samples]+1)
+rownames(data) <- ann_df[rownames(data),"gene_name"]
+
+col_fun = colorRamp2(range(data), hcl_palette = "YlOrRd", reverse = TRUE)
+Heatmap(data,
+        col=col_fun,
+        row_names_gp = gpar(fontsize = 10),
+        heatmap_legend_param = list(title = "log2(TPM+1)"),)
+
+
+```
+
+
+
+## Recreating a figure from the publication
+
+As a sanity check, we recreate Figure panel 2C from Regan-Komito et al. The plot looks very similar, despite the use of a different quantification approach.
+
+```{r , fig.width=3, fig.height=4, echo=FALSE, warning=FALSE, message=FALSE}
+
+selected_genes <- c("Selp","Csf2rb","Cd14","Lbp","Vldlr","Cdk6","Cd53","Plac8")
+
+selected_gene_ids <- rownames(ann_df)[ann_df$gene_name %in% selected_genes]
+
+# Extract a list of the samples included in the contrast of interest
+data <- log2(tpms[selected_gene_ids , samples]+1)
+rownames(data) <- ann_df[rownames(data),"gene_name"]
+
+data <- data[selected_genes,c("sscontrol_bm_lthsc_R1","sscontrol_bm_lthsc_R2","sscontrol_bm_lthsc_R3",
+                              "curdlan_bm_lthsc_R1","curdlan_bm_lthsc_R2","curdlan_bm_lthsc_R3")]
+
+#col_fun = colorRamp2(range(data), hcl_palette = "YlOrRd", reverse = TRUE)
+Heatmap(t(scale(t(data))),
+        cluster_rows = F,
+        cluster_columns = F,
+        #col=col_fun,
+        row_names_gp = gpar(fontsize = 10),
+        heatmap_legend_param = list(title = "log2(TPM+1)"),)
+
+
+```
+
+
+# Saving the results as an Excel file
+
+Finally we use the openxlsx library to save the results as an excel file. This is useful, e.g. for preparation of supplementary tables.
+
+```{r de-write-tables, echo=FALSE, message=FALSE, warning=FALSE}
+
+# save the result in an xlsx tables.
+
+xlsx_file = "deseq2_results.xlsx"
+wb <- write.xlsx(list(results=data.frame(tt)), file = xlsx_file, asTable=TRUE)
+saveWorkbook(wb, xlsx_file, overwrite = TRUE)
+
+```
+
+# Session Information
+
+```{r}
+sessionInfo()
+```
+
+
+

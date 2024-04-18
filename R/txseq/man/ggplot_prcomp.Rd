@@ -4,9 +4,16 @@
 \alias{ggplot_prcomp}
 \title{Make PCA plots using ggplot}
 \usage{
-ggplot_prcomp(prcomp_object, plots = list(A = c("PC1", "PC2"), B = c("PC3",
-  "PC4"), C = c("PC5", "PC6")), sample_information = "none", color = "c()",
-  shape = "c()", label = "none", size = 3, nudge_scale_factor = 40)
+ggplot_prcomp(
+  prcomp_object,
+  plots = list(A = c("PC1", "PC2"), B = c("PC3", "PC4"), C = c("PC5", "PC6")),
+  sample_information = "none",
+  color = "c()",
+  shape = "c()",
+  label = "none",
+  size = 3,
+  nudge_scale_factor = 40
+)
 }
 \description{
 Make PCA plots using ggplot

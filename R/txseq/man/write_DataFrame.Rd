@@ -5,8 +5,13 @@
 \title{Wrapper function for writing data
 to an SQLite database}
 \usage{
-write_DataFrame(TableName, DataFrame, database, overwrite = FALSE,
-  rownames = FALSE)
+write_DataFrame(
+  TableName,
+  DataFrame,
+  database,
+  overwrite = FALSE,
+  rownames = FALSE
+)
 }
 \arguments{
 \item{database}{Location of an sqlite database}

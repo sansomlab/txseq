@@ -2,13 +2,27 @@
 % Please edit documentation in R/clustering.R
 \name{get_den}
 \alias{get_den}
-\title{function to return a cluster dendrogram
+\title{Function to return a clustered dendrogram
 with optional optimised leaf order.}
 \usage{
-get_den(m, optimize = F, dist_method = "manhattan",
-  clust_method = "complete", p = 1.5)
+get_den(
+  m,
+  optimize = F,
+  dist_method = "manhattan",
+  clust_method = "complete",
+  p = 1.5
+)
+}
+\arguments{
+\item{dist_method}{The distance method, passed to the "dist" function}
+
+\item{clust_method}{The clustering method, passed to the "hclust" function}
+
+\item{p}{The "p" parameter for the "minkowski" distance metric}
+
+\item{optimise}{Should the dendrogram leaf order be optimised (TRUE|FALSE)}
 }
 \description{
-function to return a cluster dendrogram
+Function to return a clustered dendrogram
 with optional optimised leaf order.
 }

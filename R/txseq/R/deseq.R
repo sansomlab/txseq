@@ -1,4 +1,44 @@
-#' Get interesting genes...
+#' Group-aware pre-filtering of a DESeq object.
+#' This function is used to filter out genes that do not pass a minimum
+#' expression level in a minimum number of replicates from at least 1 group.
+#'
+#' @param dds A DESeq2 dataset object
+#' @param grouping_var The name of the variable in the colData that contains the experimental groups
+#' @param min_replicates The minimum number of replicates within a group that have min_counts
+#' @param min_counts The minimum number counts
+#'
+#' @export
+filterDESeqDatasetByGroup <- function(dds, grouping_var="condition", min_replicates=2, min_counts=10)
+{
+  message("number of genes in input dds: ", nrow(counts(dds)))
+  groups <- unique(colData(dds)[[grouping_var]])
+  
+  message("performing filtering on groups: ",paste(groups,collapse=", "))
+  group_test_results <- data.frame(row.names=rownames(counts(dds)))
+  for(group in groups)
+  {
+    message("working on group: ",group)
+  
+    samples <- colData(dds)$sample_id[colData(dds)[[grouping_var]]==group]
+    message("...with samples: ", paste(samples,collapse=", "))
+  
+    group_test_results[[group]] <- apply(counts(dds)[,samples],1,function(x) length(x[x>=min_counts])>=min_replicates)
+  }
+
+  keep <- as.vector(apply(group_test_results,1,function(x) any(x)))
+
+  dds <- dds[keep,]
+  message("number of genes in filtered dds: ", nrow(counts(dds)))
+  
+  dds
+}
+
+
+#' A function to return genes of interest from a DESeq2 top table.
+#' Genes are ranked by (i) p-value and (ii) fold change
+#' and the top n genes taken for each ranking factor
+#' for each direction (up and down-regulated)''
+#' 
 #' @export
 get_interesting <- function(tt,
                     p_value_threshold = 0.05,
@@ -7,10 +47,7 @@ get_interesting <- function(tt,
                     p_col="padj", 
                     fc_col="log2FoldChange")
 {
-  # function to return the "most interesting" genes from a top table
-  # genes are ranked by (i) p-value and (ii) fold change
-  # and the top n genes taken for each ranking factor
-  # for each direction (up and down-regulated)
+
 
   # subset to significant gene
   tt <- tt[tt[[p_col]] < p_value_threshold & !is.na(tt[[p_col]]),]
@@ -54,6 +91,9 @@ if_plot <- function(res)
 }
 
 #' plot deseq2 size factors.
+#'
+#' importFrom DESeq2 sizeFactors
+#'
 #' @export
 plot_size_factors <- function(dds, nick)
 {
@@ -69,6 +109,10 @@ plot_size_factors <- function(dds, nick)
 }
 
 #' make MA and volcano plots from DESeq2 object
+#'
+#' @import ggplot2
+#' @import ggrepel
+#'
 #' @export
 de_plots <- function(tt, 
                     interesting_genes=NULL,
@@ -81,7 +125,9 @@ de_plots <- function(tt,
                     abs_fc_threshold=2,
                     log_x=T)
 {
-  require(ggrepel)
+
+  
+  tt <- tt[!is.na(tt[[p_col]]),]
   
   # add transformed p value column for volcano
   tt$vp <- -log10(tt[[p_col]])
@@ -116,6 +162,7 @@ de_plots <- function(tt,
   else { gp <- gp + xlim(xmin,xmax)}
   gp <- gp + xlab("average expression (log2)")
   gp <- gp + ylab("log2 fold change")
+  gp <- gp + theme_light()
   if(!is.null(title)) { gp <- gp + ggtitle(title) }
 
     
@@ -133,6 +180,7 @@ de_plots <- function(tt,
   
   vp <- vp + xlab("Fold change, log2(n+1)")
   vp <- vp + ylab("- log10(adjusted p-value)")
+  vp <- vp + theme_light()
   if(!is.null(title)) { vp <- vp + ggtitle(title) }
   
   return(list(ma=gp,volcano=vp))
@@ -175,102 +223,4 @@ de_heatmap <- function(exprs_matrix,
 }
 
 hm()
-}
-
-#' Function for preparing a DESeq2 object
-#' @export
-setup_dds <- function(counts, 
-                      columnData,
-                      subset= NULL, 
-                      design = NULL,
-                      reference_levels = NULL)
-{
- 
-  # setup a DESeq2 object for testing
-  if(!is.null(subset))
-  {
-    # subset the count matrix and columnData
-    columnData <- sample_info[sample_info$sample_id %in% subset,]
-    counts <- as.matrix(counts[,subset])
-    message("subsetting active")
-  }
-  
-  if(any(rownames(columnData) %in% colnames(counts)) == FALSE)
-  {
-    stop("Sample information missing from columnData")
-  }
-  
-  # reorder the columnData to match the count matrix:
-  columnData <- columnData[colnames(counts),]
-  
-  if(is.null(design)) 
-  { 
-    stop("the design must be specificied")
-    }
-  
-  message("building the DESeq2 object")
-  # build the DESeq2 object
-  
-  dds <- DESeqDataSetFromMatrix(countData=counts, 
-                                colData=columnData, 
-                                design=as.formula(design))
-  
-  
-  if(!is.null(reference_levels))
-  {
-    message("setting reference levels")
-    # After re-leveling fold changes will be relative to the 
-    # specified reference level
-    for(given_factor in names(reference_levels))
-    {
-      ref_level <- reference_levels[[given_factor]]
-      if(!is.factor(dds[[given_factor]])) 
-      { 
-        dds[[given_factor]] <- factor(dds[[given_factor]])
-      }
-  
-      if(ref_level %in% levels(dds[[given_factor]]))
-      {
-        dds[[given_factor]] <- relevel(dds[[given_factor]], ref_level)
-      } else {
-        warning(paste(ref_level, "not found in", given_factor,"; factor is not relevelled"))
-      }
-    }
-  }
-  dds
-}
-
-#' Function for running a DESeq2 test.
-#' @export
-run_deseq2 <- function(dds, name = "placeholder",
-                       location_function="median", fit_type="local",
-                       contrast,
-                       id_col = "gene_id",
-                       annotation = ann_df)
-{
-  
-  # run a differentially expression test using a prepared object.
-  dds <- estimateSizeFactors(dds, locfunc=match.fun(location_function))
-  dds <- estimateDispersions(dds, fitType=fit_type)
-  dds <- nbinomWaldTest(dds)
-
-  raw_res <- results(dds, contrast)
-  
-  # convert to data frame after if_plot!
-  res <- data.frame(raw_res)
-  res <- res[!is.na(res$padj),]
-  
-  # sort by FDR
-  res <- res[order(res$padj),]
-  
-  # add the gene gene_names to the results
-  res$gene_name = annotation[rownames(res), "gene_name"]
-  res[[id_col]] <- rownames(res)
-  
-  # reorder the columns 
-  c1 <- c("gene_id","gene_name")
-  c2 <- colnames(res)[!colnames(res) %in% c1]
-  res <- res[,c(c1,c2)]
-
-  res <- list(table=res, dds=dds, res=raw_res)
 }

@@ -30,17 +30,29 @@ install.package <- function(x, source="CRAN", github_repo="")
 }
 
 cran_packages <- c(
+"apeglm",
+"cba",
+"RSQLite",
+"DBI",
 "RColorBrewer",
 "dplyr",
+"dendsort",
+"fastcluster",
 "ggplot2",
 "ggrastr",
 "ggrepel",
 "gplots",
 "gridExtra",
+"hexbin",
 "knitr",
+"markdown",
 "openxlsx",
+"bookdown",
+"optparse",
 "pander",
-"reshape2"
+"psych",
+"reshape2",
+"umap"
 )
 
 bioconductor_packages <- c(

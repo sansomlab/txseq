@@ -11,6 +11,9 @@ melt_mat <-function(mat, phenoData, plot_color)
 
 
 #' Helper function for plotting densities
+#'
+#' @import ggplot2
+#'
 #' @export
 plotDensities <- function(countMatrix, phenoData, plot_color, plotTitle)
 {
@@ -23,9 +26,6 @@ plotDensities <- function(countMatrix, phenoData, plot_color, plotTitle)
     gp1 <- gp1 + ggtitle(plotTitle) + guides(color=FALSE)
     gp1 <- gp1 + theme_bw()
 
-    
-    # row_meds <- apply(countMatrix,1,median)
-    # rle <- log2(countMatrix/row_meds)
     
     l2mat <- log2(countMatrix + 1)
     

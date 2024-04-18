@@ -1,13 +1,14 @@
 #' A helper function to retrieve Fastqc results from the pipeline_readqc database
 #' 
+#' @import RSQLite
+#' @import DBI
+#'
 #' @export
 #' 
 fetchFastQC <- function(qc_metric, 
                         db = fastqc_sqlite_database)
 
 {
-    require(RSQLite)
-    require(DBI)
     
     con <- dbConnect(RSQLite::SQLite(), dbname = db)
     tables <- dbListTables(con)
@@ -32,8 +33,6 @@ fetchFastQC <- function(qc_metric,
     data <- dbFetch(result)
     dbDisconnect(con)
     
-    #print(head(data))
-    
     # get rid of duplicated sample_id columns
     data <- data[,!duplicated(colnames(data))]
     
@@ -50,9 +49,7 @@ fetchFastQC <- function(qc_metric,
     if("Base" %in% colnames(data)) {
     data$Base <- gsub("([^-]+).*","\\1",data$Base)
     data$Base <- as.numeric(data$Base) }
-    
-    
-    
+       
     data
 }
 
