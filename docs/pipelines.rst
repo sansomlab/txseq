@@ -4,16 +4,12 @@ Pipelines
 .. toctree::
    :maxdepth: 2
 
-   pipelines/pipeline_adt_norm.rst
-   pipelines/pipeline_ambient_rna.rst
-   pipelines/pipeline_annotation.rst
-   pipelines/pipeline_cellbender.rst
-   pipelines/pipeline_celldb.rst
-   pipelines/pipeline_cellranger.rst
-   pipelines/pipeline_cell_qc.rst
-   pipelines/pipeline_cluster.rst
-   pipelines/pipeline_dehash.rst
-   pipelines/pipeline_emptydrops.rst
-   pipelines/pipeline_fetch_cells.rst
-   pipelines/pipeline_singleR.rst
-   pipelines/pipeline_velocyto.rst
+   pipelines/pipeline_bamqc.rst
+   pipelines/pipeline_ensembl.rst
+   pipelines/pipeline_fastqc.rst
+   pipelines/pipeline_feature_counts.rst
+   pipelines/pipeline_hisat_index.rst
+   pipelines/pipeline_hisat.rst
+   pipelines/pipeline_preprocess_quantseq_fwd.rst
+   pipelines/pipeline_salmon_index.rst
+   pipelines/pipeline_salmon.rst

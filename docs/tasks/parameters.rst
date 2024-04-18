@@ -1,3 +1,3 @@
-.. automodule:: cellhub.tasks.parameters
+.. automodule:: txseq.tasks.parameters
    :members:
    :show-inheritance:

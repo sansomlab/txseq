@@ -128,7 +128,9 @@ import sqlite3
 
 import pandas as pd
 import numpy as np
+
 import sqlalchemy
+from sqlalchemy import text
 
 from cgatcore import experiment as E
 from cgatcore import pipeline as P
@@ -137,7 +139,6 @@ import cgatcore.iotools as IOTools
 
 # import local pipeline utility functions
 import txseq.tasks as T
-import txseq.tasks.samples as samples
 import txseq.tasks.readqc as readqc
 
 # ----------------------- < pipeline configuration > ------------------------ #
@@ -154,8 +155,8 @@ PARAMS["txseq_code_dir"] = Path(__file__).parents[1]
 
 if len(sys.argv) > 1:
     if(sys.argv[1] == "make"):
-        S = samples.samples(sample_tsv = PARAMS["samples"],
-                            library_tsv = PARAMS["libraries"])
+        S = T.samples(sample_tsv = PARAMS["samples"],
+                      library_tsv = PARAMS["libraries"])
 
 # ########################################################################### #
 # ############################ Run FASTQC  ################################## #
@@ -276,21 +277,25 @@ def loadMetadata(infile, outfile):
     
     db =sqlalchemy.create_engine('sqlite:///' + PARAMS["sqlite_file"])
 
-    S.sample_table.to_sql(name = 'samples',
-                          con= db, 
-                          index= False, 
-                          if_exists='replace') 
-    
-    from sqlalchemy import text
+    with db.connect() as dbconn:
 
-    db.execute("CREATE INDEX samples_sample_id on samples (sample_id)")
+        S.sample_table.to_sql(name = 'samples',
+                              con= dbconn, 
+                              index= False, 
+                              if_exists='replace') 
     
-    S.fastq_table.to_sql(name = 'fastqs',
-                         con= db, 
-                         index=False, 
-                         if_exists='replace') 
+    
 
-    db.execute("CREATE INDEX fastqs_fastq_id on fastqs (sample_id)")
+        dbconn.execute(text("CREATE INDEX samples_sample_id on samples (sample_id)"))
+        
+    with db.connect() as dbconn:
+    
+        S.fastq_table.to_sql(name = 'fastqs',
+                            con= dbconn, 
+                            index=False, 
+                            if_exists='replace') 
+
+        dbconn.execute(text("CREATE INDEX fastqs_fastq_id on fastqs (sample_id)"))
     
     db.dispose()
 

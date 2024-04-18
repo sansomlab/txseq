@@ -1,4 +1,8 @@
 #' Make PCA plots using ggplot
+#'
+#' @import  ggplot2
+#' @import  gridExtra
+#'
 #' @export
 ggplot_prcomp <- function(prcomp_object,
                          plots=list("A"=c("PC1","PC2"), "B"=c("PC3","PC4"), "C"=c("PC5","PC6")),
@@ -9,7 +13,6 @@ ggplot_prcomp <- function(prcomp_object,
                          size=3,
                          nudge_scale_factor=40)
 {
-    require(gridExtra)
     pca = prcomp_object
 
     # sample_information should have the same rownames as pca$x

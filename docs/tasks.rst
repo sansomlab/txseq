@@ -9,6 +9,6 @@ This sub-module provides helper classes and functions for configuring and runnin
 
    tasks/parameters.rst
    tasks/setup.rst
-   tasks/api.rst
+   tasks/samples.rst
    tasks/profile.rst
-   tasks/cellbender.rst
+

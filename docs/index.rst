@@ -1,5 +1,4 @@
-.. cellhub documentation master file, created by
-   sphinx-quickstart on Tue May  4 15:09:36 2021.
+.. txseq documentation master file.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
@@ -13,10 +12,11 @@ txseq provides workflows for the QC and analysis of bulk RNA-sequencing data.
 
    overview.rst
    installation.rst
+   genomesAndAnnotations.rst
+   buildingTranscriptomeIndexes.rst
    usage.rst
-   examples.rst
+   mouse_hscs_example.rst
    pipelines.rst
-   api.rst
    tasks.rst
    contributing.rst
 

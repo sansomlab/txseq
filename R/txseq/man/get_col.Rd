@@ -4,8 +4,13 @@
 \alias{get_col}
 \title{Function to get colors for a heatmap}
 \usage{
-get_col(mat, lower_quantile = 0, upper_quantile = 0.9, nbreaks = 50,
-  palette = brewer.pal(9, name = "YlOrRd"))
+get_col(
+  mat,
+  lower_quantile = 0,
+  upper_quantile = 0.9,
+  nbreaks = 50,
+  palette = brewer.pal(9, name = "YlOrRd")
+)
 }
 \arguments{
 \item{mat}{the data matrix}

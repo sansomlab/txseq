@@ -4,9 +4,18 @@
 \alias{de_plots}
 \title{make MA and volcano plots from DESeq2 object}
 \usage{
-de_plots(tt, interesting_genes = NULL, p_value_threshold = 0.05,
-  p_col = "padj", fc_col = "log2FoldChange", exprs_col = "baseMean",
-  label = "gene_name", title = NULL, abs_fc_threshold = 2, log_x = T)
+de_plots(
+  tt,
+  interesting_genes = NULL,
+  p_value_threshold = 0.05,
+  p_col = "padj",
+  fc_col = "log2FoldChange",
+  exprs_col = "baseMean",
+  label = "gene_name",
+  title = NULL,
+  abs_fc_threshold = 2,
+  log_x = T
+)
 }
 \description{
 make MA and volcano plots from DESeq2 object

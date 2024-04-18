@@ -1,0 +1,11 @@
+biopython
+argparse
+numpy
+pandas
+ruffus
+pyyaml
+sqlalchemy
+drmaa
+cgatcore
+gevent
+apsw

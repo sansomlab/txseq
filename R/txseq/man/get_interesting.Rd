@@ -2,11 +2,23 @@
 % Please edit documentation in R/deseq.R
 \name{get_interesting}
 \alias{get_interesting}
-\title{Get interesting genes...}
+\title{A function to return genes of interest from a DESeq2 top table.
+Genes are ranked by (i) p-value and (ii) fold change
+and the top n genes taken for each ranking factor
+for each direction (up and down-regulated)''}
 \usage{
-get_interesting(tt, p_value_threshold = 0.05, n = 10, id_col = "gene_id",
-  p_col = "padj", fc_col = "log2FoldChange")
+get_interesting(
+  tt,
+  p_value_threshold = 0.05,
+  n = 10,
+  id_col = "gene_id",
+  p_col = "padj",
+  fc_col = "log2FoldChange"
+)
 }
 \description{
-Get interesting genes...
+A function to return genes of interest from a DESeq2 top table.
+Genes are ranked by (i) p-value and (ii) fold change
+and the top n genes taken for each ranking factor
+for each direction (up and down-regulated)''
 }

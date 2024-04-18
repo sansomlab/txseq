@@ -4,23 +4,63 @@
 
 # A local path to the Ensembl primary assembly in gzipped FASTA format
 # This should contain the reference chromosomes, unplaced sequence and unlocalised sequences. It should not contain ALT or patch sequences.
-# e.g. for humans, a suitable file can be download from https://ftp.ensembl.org/pub/release-110/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
+#
+#  e.g. for humans, a suitable file can be download from https://ftp.ensembl.org/pub/release-110/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
+#
+#  on the KIR BMRC platform, please use the files mirrored here:
+#      /well/kir/mirror/ensembl 
+#
+#  for the mouse_hsc_example, set to: 
+#      /my/path/to/Mus_musculus.GRCm39.dna.primary_assembly.fa.gz
+#
 primary_assembly:
 
 # A local path to the Ensembl geneset in gzipped GTF format
+#
 # e.g. for humans, a suitable file can be download from https://ftp.ensembl.org/pub/release-110/gtf/homo_sapiens/Homo_sapiens.GRCh38.110.gtf.gz
+#
+#  on the KIR BMRC platform, please use the files mirrored here:
+#      /well/kir/mirror/ensembl 
+#
+#  for the mouse_hsc_example, set to: 
+#      /my/path/to/Mus_musculus.GRCm39.110.gtf.gz
+#
 geneset:
 
 # A local path to the Ensembl cDNA FASTA sequences in gzipped FASTA format
-# e.g. for humans, a suitable file can be download from https://ftp.ensembl.org/pub/release-110/fasta/homo_sapiens/cds/Homo_sapiens.GRCh38.cds.all.fa.gz
+#
+# e.g. for humans, a suitable file can be download from https://ftp.ensembl.org/pub/release-110/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz
+#
+#  on the KIR BMRC platform, please use the files mirrored here:
+#      /well/kir/mirror/ensembl 
+#
+#  for the mouse_hsc_example, set to: 
+#      /my/path/to/Mus_musculus.GRCm39.cdna.all.fa.gz
+#
 cdna:
 
 # A local path to the Ensembl ncRNA FASTA sequences in gzipped FASTA format
+#
 # e.g. for humans, a suitable file can be download from https://ftp.ensembl.org/pub/release-110/fasta/homo_sapiens/ncrna/Homo_sapiens.GRCh38.ncrna.fa.gz
+#
+#  on the KIR BMRC platform, please use the files mirrored here:
+#      /well/kir/mirror/ensembl 
+#
+#  for the mouse_hsc_example, set to: 
+#      /my/path/to/Mus_musculus.GRCm39.ncrna.fa.gz
+#
 ncrna:
 
 # A local path to PAR region definitions in BED format
+#
 # Coordinates can be retrieved from Ensembl or the GRC
 # see e.g. https://www.biostars.org/p/228498/
+#
+#  on the KIR BMRC platform, please use the files mirrored here:
+#      /well/kir/mirror/ensembl 
+#
+#  for the mouse_hsc_example, set to: 
+#      /my/path/to/GRCm39.PAR.bed
+#
 par: 
 

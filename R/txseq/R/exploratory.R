@@ -1,4 +1,7 @@
 #' Make a histogram of gene expression levels
+#'
+#' @import ggplot2
+#'
 #' @export
 expression_hist <- function(count_matrix,title="")
     {
@@ -54,6 +57,9 @@ cor_nz <- function(m, min_exprs=0, method="pearson")
 #' @param nbreaks the number of breaks
 #' @param palette An RColorBrewer palette
 #' 
+#'
+#' @import RColorBrewer
+#'
 #' @export
 #' 
 get_col <- function(mat,
@@ -62,7 +68,6 @@ get_col <- function(mat,
                     nbreaks=50,
                     palette=brewer.pal(9, name="YlOrRd"))
 {
-  require(RColorBrewer)
     low <- quantile(mat,lower_quantile)
     high <- quantile(mat,upper_quantile)
     breaks=seq(low,high,(high-low)/nbreaks)

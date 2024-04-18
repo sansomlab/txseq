@@ -4,11 +4,24 @@
 \alias{rnaseq_heatmap}
 \title{function to draw heatmap from RNA-seq counts or FPKMS}
 \usage{
-rnaseq_heatmap(m, rowden = F, colden = F, labRow = NULL,
-  ramp_colors = c("black", "blue", "white", "yellow", "orange", "red",
-  "brown"), key.xticks = c(1:4), key.xlab = "expression level",
-  log_factor = 10, mar = c(14, 12), title = NULL, lhei = c(1.15, 4),
-  lwid = c(1.3, 4), cexRow = 1, cexCol = 1, ...)
+rnaseq_heatmap(
+  m,
+  rowden = F,
+  colden = F,
+  dendrogram = "column",
+  labRow = NULL,
+  ramp_colors = c("black", "blue", "white", "yellow", "orange", "red", "brown"),
+  key.xticks = c(1:4),
+  key.xlab = "expression level",
+  log_factor = 10,
+  mar = c(14, 12),
+  title = NULL,
+  lhei = c(1.15, 4),
+  lwid = c(1.3, 4),
+  cexRow = 1,
+  cexCol = 1,
+  ...
+)
 }
 \description{
 function to draw heatmap from RNA-seq counts or FPKMS

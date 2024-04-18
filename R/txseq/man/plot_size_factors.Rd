@@ -7,5 +7,5 @@
 plot_size_factors(dds, nick)
 }
 \description{
-plot deseq2 size factors.
+importFrom DESeq2 sizeFactors
 }

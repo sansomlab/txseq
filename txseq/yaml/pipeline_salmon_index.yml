@@ -7,25 +7,32 @@
 #
 #
 # The txseq sanitised Ensembl primary assembly
-#.dir
-# e.g. human: /well/kir/mirror/txseq/GRCh38.110.dir/ensembl.dir/api.dir/txseq.genome.fa.gz
-# e.g. mouse: /well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir/api.dir/txseq.genome.fa.gz
-
+#
+# If working on the KIR BMRC space, use e.g.
+#       for human: /well/kir/mirror/txseq/GRCh38.110.dir/ensembl.dir/api.dir/txseq.genome.fa.gz
+#       for mouse: /well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir/api.dir/txseq.genome.fa.gz
+#
+# For the mouse_hscs example, set to 
+#       /my/path/to/GRCm39.110.dir/ensembl.dir/api.dir/txseq.genome.fa.gz
+#
 genome_fasta: 
 
 
 # The txseq sanitised Ensembl transcript fasta sequences
 #
-# e.g. human: /well/kir/mirror/txseq/GRCh38.110.dir/ensembl.dir/api.dir/txseq.transcript.fa.gz
-# e.g. mouse: /well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir/api.dir/txseq.transcript.fa.gz
-
+# If working on the KIR BMRC space, use e.g. 
+#       for human: /well/kir/mirror/txseq/GRCh38.110.dir/ensembl.dir/api.dir/txseq.transcript.fa.gz
+#       for mouse: /well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir/api.dir/txseq.transcript.fa.gz
+#
+# For the mouse_hscs example, set to 
+#       /my/path/to/GRCm39.110.dir/ensembl.dir/api.dir/txseq.transcript.fa.gz
+#
 transcript_fasta: 
 
 # The source of the fasta file.
 # if set to "gencode", the "--gencode" flag is passed to the "salmon index" command
 # When using a txseq sanitised Ensembl transcript fasta file, this should not be set.
 fasta_source: 
-
 
 # When using the suggested genome and transcript fasta sequences from gencode
 # is strongly recommended to use the --keepDuplicates argument. If --keepDuplicates

@@ -69,7 +69,6 @@ import cgatcore.iotools as IOTools
 
 # import local pipeline utility functions
 import txseq.tasks as T
-import txseq.tasks.samples as samples
 
 # ----------------------- < pipeline configuration > ------------------------ #
 
@@ -85,8 +84,8 @@ PARAMS["txseq_code_dir"] = Path(__file__).parents[1]
 
 if len(sys.argv) > 1:
     if(sys.argv[1] == "make"):
-        S = samples.samples(sample_tsv = PARAMS["samples"],
-                            library_tsv = None)
+        S = T.samples(sample_tsv = PARAMS["samples"],
+                      library_tsv = None)
         
         # Set the database location
         DATABASE = PARAMS["sqlite"]["file"]
@@ -175,34 +174,43 @@ def loadCounts(infiles, outfile):
 
 
 @files(loadCounts,
-       "feature.counts.dir/featurecounts_counts.txt")
+       "feature.counts.dir/featurecounts_counts.sentinel")
 def geneCounts(infile, outfile):
     '''
     Prepare a gene-by-sample table of featureCounts counts.
     '''
 
+    t = T.setup(infile, outfile, PARAMS,
+                memory="24G",
+                cpu=1)
     table = P.to_table(infile)
-    con = sqlite3.connect(DATABASE)
-    c = con.cursor()
 
-    sql = '''select track, gene_id, counts
-             from %(table)s t
-          ''' % locals()
+    database = DATABASE
 
-    df = pd.read_sql(sql, con)
-    df = df.pivot(index="gene_id", columns="track", values="counts")
-    df.to_csv(outfile, sep="\t", index=True, index_label="gene_id")
+    statement = '''python %(txseq_code_dir)s/python/feature_counts_table.py
+                   --database=%(database)s
+                   --table=%(table)s
+                   --outfile=%(out_file)s.tsv.gz
+                   &> %(log_file)s
+                ''' % dict(PARAMS, **t.var, **locals())
+              
+    P.run(statement, **t.resources)
+    
+    IOTools.touch_file(outfile)
+
+
 
 
 @transform(geneCounts,
-           suffix(".txt"),
+           suffix(".sentinel"),
            ".load")
 def loadGeneCounts(infile, outfile):
     '''
     Load the gene-by-sample matrix of count data in the project database.
     '''
 
-    P.load(infile, outfile, options='-i "gene_id"')
+    P.load(infile[:-len(".sentinel")]+".tsv.gz", 
+           outfile, options='-i "gene_id"')
 
 
 # ----------------------- load txinfo ------------------------------ #
@@ -226,36 +234,30 @@ def loadTranscriptInfo(infile, outfile):
 
 @follows(loadTranscriptInfo)
 @files(loadCounts,
-       "feature.counts.dir/number.genes.detected.featurecounts")
+       "feature.counts.dir/number.genes.detected.featurecounts.sentinel")
 def nGenesDetected(infile, outfile):
     '''
     Count of genes detected by featureCount at counts > 0 in each sample.
     '''
 
+    t = T.setup(infile, outfile, PARAMS,
+            memory="24G",
+            cpu=1)
+
     table = P.to_table(infile)
 
-    # attach = '''attach "%(ANN_DATABASE)s" as anndb''' % globals()
-    statement = '''select distinct h.*, gene_biotype
-                   from %(table)s h
-                   inner join transcript_info i
-                   on h.gene_id=i.gene_id
-               ''' % locals()
+    database = DATABASE
 
-    melted_df = DB.fetch_DataFrame(statement, 
-                                   DATABASE)
-
-    grouped_df = melted_df.groupby(["gene_biotype", "track"])
-
-    agg_df = grouped_df.agg({"counts": lambda x:
-                             np.sum([1 for y in x if y > 0])})
-    agg_df.reset_index(inplace=True)
-
-    count_df = pd.pivot_table(agg_df, index="track",
-                              values="counts", columns="gene_biotype")
-    count_df["total"] = count_df.apply(np.sum, 1)
-    count_df["sample_id"] = count_df.index
-
-    count_df.to_csv(outfile, index=False, sep="\t")
+    statement = '''python %(txseq_code_dir)s/python/feature_counts_no_genes_detected.py
+                   --database=%(database)s
+                   --table=%(table)s
+                   --outfile=%(out_file)s.tsv.gz
+                   &> %(log_file)s
+                ''' % dict(PARAMS, **t.var, **locals())
+              
+    P.run(statement, **t.resources)
+    
+    IOTools.touch_file(outfile)
 
 
 @files(nGenesDetected,
@@ -265,7 +267,8 @@ def loadNGenesDetected(infile, outfile):
     Load the numbers of genes expressed to the project database.
     '''
 
-    P.load(infile, outfile,
+    P.load(infile[:-len(".sentinel")] + ".tsv.gz", 
+           outfile,
            options='-i "sample_id"')
 
 

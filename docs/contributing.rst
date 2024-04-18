@@ -12,16 +12,16 @@ Repository layout
 
    * - Folder
      - Contents
-   * - cellhub
-     - The cellhub Python module which contains the set of CGAT-core pipelines
-   * - cellhub/tasks
-     - The cellhub tasks submodule which contains helper functions and pipeline task definitions
-   * - cellhub/reports
-     - The latex source files used for building the reports
+   * - txseq
+     - The txseq Python module which contains the set of CGAT-core pipelines
+   * - txseq/tasks
+     - The txseq tasks submodule which contains helper functions and pipeline task definitions
+   * - txseq/reports
+     - The Rmd report templates
    * - Python
      - Python worker scripts that are executed by pipeline tasks
-   * - R/cellhub
-     - The R cellhub library
+   * - R/txseq
+     - The R txseq library
    * - R/scripts
      - R worker scripts that are executed by pipeline tasks
    * - docsrc
@@ -65,32 +65,31 @@ R
 Writing pipelines
 -----------------
 
-The pipelines live in the "cellhub" python module.
+The pipelines live in the "txseq" python module.
 
-Auxiliary task functions live in the "cellhub/task" python sub-module.
+Auxiliary task functions live in the "txseq/task" python sub-module.
 
-In the notes below "xxx" denotes the name of a pipeline such as e.g. "cell_qc".
+In the notes below "xxx" denotes the name of a pipeline such as e.g. "salmon".
 
 1. Paths should never be hardcoded in the pipelines - rather they must be read from the yaml files.
 2. Yaml configuration files are named pipeline_xxx.yml
 3. The output of individual pipelines should be written to a subfolder name "xxx.dir" to keep the root directory clean (it should only contain these directories and the yml configuration files!).
-4. Pipelines that generate cell-level information for down-stream analysis must read their inputs from the api and register their public outputs to the API, see :doc:`API<API>`. If you need information from an upstream pipeline that is not present on the API please raise an issue.
-5. We are documenting the pipelines using the sphinx "autodocs" module: please maintain informative rst docstrings.
+4. We are documenting the pipelines using the sphinx "autodocs" module: please maintain informative rst docstrings.
 
 
 Writing pipeline tasks
 ----------------------
 
-Helper functions for writing pipelines and tasks live in the :doc:`cellhub.tasks module<tasks/api>`.
+Helper functions for writing pipelines and tasks live in the :doc:`txseq.tasks module<tasks/api>`.
 
-In cellhub, pipeline tasks are written using the :doc:`cellhub.tasks.setup module<tasks/api>` as follows:
+In txseq, pipeline tasks are written using the :doc:`txseq.tasks.setup module<tasks/api>` as follows:
 
 .. code-block:: python
 
     import ruffus
     import cgatcore.pipeline as P
     import cgatcore.iotools as IOTools
-    import cellhub.tasks as T
+    import txseq.tasks as T
     
     PARAMS = P.get_parameters(....)
     
@@ -122,7 +121,7 @@ As shown in the example, the following conventions are adopted:
    the task returns without an error. This ensures that the pipeline does not
    proceed with partial results.
 
-#. An instance, "t", of the cellhub.tasks.setup class is created. Based on the arguments 
+#. An instance, "t", of the txseq.tasks.setup class is created. Based on the arguments 
    provided, it is populated with useful variables (see above), including the parsed resource requirements.
    By default, the class constructor will create the output directory (if it does not already
    exist) based on the outfile name.
@@ -136,29 +135,21 @@ As shown in the example, the following conventions are adopted:
 #. The resources needed are passed to P.run() as kwargs via the t.resources dictionary.
 
 
-Cell indexing
--------------
-
-* Tables of per-cell information registered on the API must have columns "barcode" (for the original Cellranger assigned barcode, "-1" suffix not removed) and "library_id". These two columns are used by pipeline_celldb.py to join the tables in the database.
-
-* Downstream of fetch_cells, when cells are aggregated across libraries, we use unique cell identifiers made by combining the barcode and library id in [AGCT]-library_id format (with the "-1" suffix now removed from the original barcode). The unique cell identifiers are used to populate the anndata.obs.index and the "barcode_id" column in tsv files where needed.
-
-
 
 Yaml configuration file naming
 ------------------------------
 
 The cgat-core system only supports configuration files name "pipeline.yml".
 
-We work around this by overriding the cgat-core functionality using a helper function in cellhub.tasks.control as follows::
+We work around this by overriding the cgat-core functionality using a helper function in txseq.tasks.control as follows::
 
   import Pipeline as P
-  import cellhub.tasks.control as C
+  import txseq.tasks.control as C
 
   # Override function to collect config files
   P.control.write_config_files = C.write_config_files
 
-Default yml files must be located at the path cellhub/yaml/pipeline_xxx.yml
+Default yml files must be located at the path txseq/yaml/pipeline_xxx.yml
 
 
 Compiling the documentation locally

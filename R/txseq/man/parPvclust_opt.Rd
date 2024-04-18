@@ -13,10 +13,20 @@
 #                           nboot=1000)
 # stopCluster(cl)}
 \usage{
-parPvclust_opt(cl = NULL, data, method.hclust = "average",
-  method.dist = "correlation", use.cor = "pairwise.complete.obs",
-  nboot = 1000, r = seq(0.5, 1.4, by = 0.1), store = FALSE,
-  weight = FALSE, init.rand = NULL, iseed = NULL, quiet = FALSE)
+parPvclust_opt(
+  cl = NULL,
+  data,
+  method.hclust = "average",
+  method.dist = "correlation",
+  use.cor = "pairwise.complete.obs",
+  nboot = 1000,
+  r = seq(0.5, 1.4, by = 0.1),
+  store = FALSE,
+  weight = FALSE,
+  init.rand = NULL,
+  iseed = NULL,
+  quiet = FALSE
+)
 }
 \arguments{
 \item{cl}{Snow cluster}
