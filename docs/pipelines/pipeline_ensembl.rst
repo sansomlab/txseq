@@ -1,3 +1,3 @@
-.. automodule:: cellhub.pipeline_ensembl
+.. automodule:: txseq.pipeline_ensembl
    :members:
    :show-inheritance:

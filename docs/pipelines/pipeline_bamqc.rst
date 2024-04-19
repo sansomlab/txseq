@@ -1,3 +1,3 @@
-.. automodule:: cellhub.pipeline_bamqc
+.. automodule:: txseq.pipeline_bamqc
    :members:
    :show-inheritance:

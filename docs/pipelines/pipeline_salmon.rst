@@ -1,3 +1,3 @@
-.. automodule:: cellhub.pipeline_salmon
+.. automodule:: txseq.pipeline_salmon
    :members:
    :show-inheritance:

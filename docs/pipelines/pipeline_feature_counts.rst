@@ -1,3 +1,3 @@
-.. automodule:: cellhub.pipeline_feature_counts
+.. automodule:: txseq.pipeline_feature_counts
    :members:
    :show-inheritance:
