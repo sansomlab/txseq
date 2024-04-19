@@ -13,7 +13,7 @@ For this example we use paired end RNA-seq data from `Regan-Komito et al 'GM-CSF
 1. Getting the configuration files and report templates
 -------------------------------------------------------
 
-Make a suitable local folder and copy the samples.tsv and libraries.tsv for the "mouse_hscs" example into it. Here we plan to run the example in "~/work/hscs_example", but this path may be different for you ::
+Make a suitable local folder and copy the samples.tsv and libraries.tsv for the "mouse_hscs" example into it. Here we choose to run the example in a folder with the path "~/work/hscs_example" ::
 
   mkdir ~/work/txseq_hscs_example
   cd ~/work/txseq_hscs_example
@@ -28,7 +28,11 @@ Edit the txseq/libraries.tsv file to point to the location of the FASTQ files re
 
 .. note:: If you are working in the Kennedy workspace on the Oxford BMRC cluster, the required txseq annotations are available in the mirror folder and this step can be skipped.
   
-Follow the instructions on the :doc:`Genomes and Annotations <genomesAndAnnotations>` page to retrieve the required files and run the "txseq ensembl" pipeline to prepare santitised annotation files for the mouse genome.
+Follow the instructions on the :doc:`Genomes and Annotations <genomesAndAnnotations>` page to:
+
+#. Retrieve the required sequence and annotation files.
+
+#. Run the "txseq ensembl" pipeline to prepare santitised mouse genome and annotation files for RNA-seq analysis.
 
   
 3 Building the Salmon and Hisat2 transcriptome indexes
@@ -78,7 +82,7 @@ The output BAM files are located in the "hisat.dir" sub-directory.
 5. Generating post-mapping QC statistics
 ----------------------------------------
 
-After mapping with Hisat2, post-mapping QC statistics are computed using :doc:`pipeline_bamqc.py<pipelines/pipeline_bamqc>`. This pipeline runs several `Picard <https://broadinstitute.github.io/picard/>`_ tools including CollectRnaSeqMetrics, EstimateLibraryComplexity, AlignmentSummaryMetrics and CollectInsertSizeMetrics as well as some custom scripts. ::
+After mapping with Hisat2, post-mapping QC statistics are computed using :doc:`pipeline_bamqc.py<pipelines/pipeline_bamqc>`. This pipeline runs several `Picard <https://broadinstitute.github.io/picard/>`_ tools including *CollectRnaSeqMetrics*, *EstimateLibraryComplexity*, *AlignmentSummaryMetrics* and *CollectInsertSizeMetrics* as well as some custom scripts. ::
 
   cd ~/work/txseq_hscs_example
   mkdir bamqc

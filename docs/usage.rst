@@ -23,11 +23,7 @@ To fully run e.g. the txseq salmon pipeline the following command is used: ::
   
 The "-v5" flag sets the verbosity level to the maximum level and the "-p20" flag tells the pipeline to launch upto 20 jobs in parallel: this number should be set according to the sample number and availability of compute resources.
 
-It is also possible to run individual pipeline tasks to get a feel of what each one is doing. To list the pipeline tasks and their current status, use the 'show' command: ::
-
-  txseq salmon show
-
-Individual tasks can then be executed by name, e.g. ::
+It is also possible to run individual pipeline tasks to get a feel of what each one is doing. Individual tasks can then be executed by name, e.g. ::
 
   txseq salmon make quant -v5 -p20
 
