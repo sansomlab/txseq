@@ -109,7 +109,7 @@ def get_parameter_file(pipeline_path):
             
             if not os.path.exists(yml_file):
                 raise ValueError("default configuration file missing")
-            
+        
         else:
         
             raise ValueError('pipeline command not recognised: ' + sys.argv[1])

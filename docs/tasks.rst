@@ -1,6 +1,6 @@
 
-cellhub.tasks
--------------
+txseq.tasks
+-----------
 
 This sub-module provides helper classes and functions for configuring and running the pipelines.
 
