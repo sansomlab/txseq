@@ -1,3 +1,3 @@
-.. automodule:: cellhub.pipeline_hisat_index
+.. automodule:: txseq.pipeline_hisat_index
    :members:
    :show-inheritance:
