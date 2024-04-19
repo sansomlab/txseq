@@ -2,6 +2,7 @@
 
 library(optparse)
 suppressPackageStartupMessages(library(tximeta))
+suppressPackageStartupMessages(library(tximport))
 
 ## deal with the options
 option_list <- list(
@@ -30,6 +31,16 @@ opt <- parse_args(OptionParser(option_list=option_list))
 print("Running with options:")
 print(opt)
 
+
+
+out_folder = dirname(opt$outfile)
+jsonFile_path = file.path(out_folder,"make.linked.Txome.json")
+
+# set the tximeta cache location
+# - this is essential to ensure use of the corrected linked transcriptome
+#   (in testing, tximeta repeatedly tried to use incorrect cached files)
+setTximetaBFC(file.path(out_folder,"cache"), quiet = FALSE)
+
 message("making Linked Transcriptome")
 makeLinkedTxome(indexDir=opt$indexdir,
                 source="LocalEnsembl",
@@ -38,7 +49,8 @@ makeLinkedTxome(indexDir=opt$indexdir,
                 genome=opt$genomeversion,
                 fasta=opt$transcripts,
                 gtf=opt$geneset,
-                write=FALSE)
+                write=TRUE,
+		jsonFile=jsonFile_path)
 
 # construct the coldata
 

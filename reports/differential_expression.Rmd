@@ -326,6 +326,7 @@ deplots <- de_plots(data.frame(tt),
 grid.arrange(grobs=(list(deplots$ma, deplots$volcano)), ncol=2)
  
 ```
+
 ## Heatmap of top differentially expressed genes
 
 ```{r , fig.width=4, fig.height=10, echo=FALSE, warning=FALSE, message=FALSE}

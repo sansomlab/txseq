@@ -23,7 +23,7 @@ Inputs
 
 The pipeline requires the following inputs
 
-#. samples.tsv: see :doc:`pipeline_fastqc.py </pipelines/pipeline_fastqc>`
+#. samples.tsv: see :doc:`Configuration files<configuration>`
 #. txseq annotations: the location where the :doc:`pipeline_ensembl.py </pipelines/pipeline_ensembl>` was run to prepare the annotatations.
 #. bam files: the location of a folder containing the bam files named by "sample_id".
 

@@ -23,8 +23,8 @@ Inputs
 
 The pipeline requires the following inputs
 
-#. samples.tsv: see :doc:`pipeline_fastqc.py </pipelines/pipeline_fastqc>`
-#. libraries.tsv: see :doc:`pipeline_fastqc.py </pipelines/pipeline_fastqc>`
+#. samples.tsv: see :doc:`Configuration files<configuration>`
+#. libraries.tsv: see :doc: `Configuration files<configuration>`
 #. txseq annotations: the location where the :doc:`pipeline_ensembl.py </pipelines/pipeline_ensembl>` was run to prepare the annotatations.
 #. Hisat index: a hisat2 index built with :doc:`pipeline_hisat_index.py </pipelines/pipeline_hisat_index>`.
 
