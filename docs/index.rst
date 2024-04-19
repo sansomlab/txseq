@@ -15,7 +15,7 @@ Txseq provides a suite of modular workflows for the QC and analysis of bulk RNA-
    installation.rst
    genomesAndAnnotations.rst
    buildingTranscriptomeIndexes.rst
-   usage.rst
+   configuration.rst
    mouse_hscs_example.rst
    pipelines.rst
    tasks.rst

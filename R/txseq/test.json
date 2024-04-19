@@ -1,0 +1,12 @@
+[
+  {
+    "index": "salmon_index",
+    "source": "LocalEnsembl",
+    "organism": "Mus musculus",
+    "release": "110",
+    "genome": "GRCm39",
+    "fasta": ["/well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir/api.dir/txseq.transcript.fa.gz"],
+    "gtf": "/well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir/api.dir/txseq.geneset.gtf.gz",
+    "sha256": "0d4ab56c077266b2904a99acdcde1e3bb2189e9deb4cf582e41aeea1e670f036"
+  }
+]

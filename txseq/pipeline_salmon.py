@@ -23,8 +23,8 @@ Inputs
 
 The pipeline requires the following inputs
 
-#. samples.tsv: see :doc:`pipeline_fastqc.py </pipelines/pipeline_fastqc>`
-#. libraries.tsv: see :doc:`pipeline_fastqc.py </pipelines/pipeline_fastqc>`
+#. samples.tsv: see :doc:`Configuration files<configuration>`
+#. libraries.tsv: see :doc: `Configuration files<configuration>`
 #. txseq annotations: the location where the :doc:`pipeline_ensembl.py </pipelines/pipeline_ensembl>` was run to prepare the annotatations.
 #. Salmon index: the location of a salmon index built with :doc:`pipeline_salmon_index.py </pipelines/pipeline_salmon_index>`.
 
@@ -261,10 +261,12 @@ def tximeta(infile, outfile):
     
     t = T.setup(infile, outfile, PARAMS)
     
-    geneset_path = os.path.join(PARAMS["txseq_annotations"], "api.dir/txseq.geneset.gtf.gz")
-    transcript_path = os.path.join(PARAMS["txseq_annotations"], "api.dir/txseq.transcript.fa.gz")
+    geneset_path = os.path.join(PARAMS["txseq_annotations"],
+                                "api.dir/txseq.geneset.gtf.gz")
+    transcript_path = os.path.join(PARAMS["txseq_annotations"],
+                                   "api.dir/txseq.transcript.fa.gz")
     
-    statement = '''Rscript %(txseq_code_dir)s/R/tximeta.R
+    statement = '''Rscript %(txseq_code_dir)s/R/scripts/tximeta.R
                    --indexdir=%(txseq_salmon_index)s
                    --salmondir=salmon.dir
                    --transcripts=%(transcript_path)s 
