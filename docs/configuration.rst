@@ -52,6 +52,11 @@ example with columns such as:
     * PICARD: SECOND_READ_TRANSCRIPTION_STRAND
     * SALMON: (I)SR
 
+An example samples.tsv file is shown below:
+
+.. literalinclude:: ../examples/mouse_hscs/samples.tsv
+    :language: Bash
+
 
 (2) "libraries.tsv" (optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -72,7 +77,10 @@ A tab-separated text file with the following mandatory columns
 .. Note:: 
     Paired-end fastq files must end with "1|2.fastq.gz" or "fastq.1|2.gz". For paired end samples the Read 1 and Read 2 FASTQ files for the same lane must be located in the same folder.
 
+An example libraries.tsv file is shown below:
 
+.. literalinclude:: ../examples/mouse_hscs/libraries.tsv
+    :language: Bash
 
 
 Configuring and running pipelines
