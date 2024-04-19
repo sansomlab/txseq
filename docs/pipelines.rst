@@ -2,7 +2,7 @@ Pipelines
 ---------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    pipelines/pipeline_bamqc.rst
    pipelines/pipeline_ensembl.rst
