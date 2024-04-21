@@ -179,6 +179,8 @@ def collectRnaSeqMetrics(infile, sentinel):
 
     mktemp_template = "ctmp.CollectRnaSeqMetrics.XXXXXXXXXX"
 
+    # The histogram is not generated if no data is present
+    # https://github.com/broadinstitute/picard/issues/1177
     statement = '''picard_out=`mktemp -p . %(mktemp_template)s`;
                    %(picard_cmd)s CollectRnaSeqMetrics
                    -I %(bam_file)s
@@ -193,7 +195,7 @@ def collectRnaSeqMetrics(infile, sentinel):
                    grep . $picard_out
                    | grep -A 102 "## HISTOGRAM"
                    | grep -v "##"
-                   > %(coverage_out)s;
+                   > %(coverage_out)s || touch %(coverage_out)s;
                    rm $picard_out;
                 ''' % dict(PARAMS, **t.var, **locals())
 
@@ -231,18 +233,25 @@ def threePrimeBias(infile, outfile):
 
     coverage_histogram = infile[:-len(".metrics")] + ".cov.hist"
 
-    df = pd.read_csv(coverage_histogram, sep="\t")
+    # See comment above re histograms not always being generated
+    try:
+        df = pd.read_csv(coverage_histogram, sep="\t")
 
-    x = "normalized_position"
-    cov = "All_Reads.normalized_coverage"
+        x = "normalized_position"
+        cov = "All_Reads.normalized_coverage"
 
-    three_prime_coverage = np.mean(df[cov][(df[x] > 70) & (df[x] < 90)])
-    transcript_body_coverage = np.mean(df[cov][(df[x] > 20) & (df[x] < 90)])
-    bias = three_prime_coverage / transcript_body_coverage
+        three_prime_coverage = np.mean(df[cov][(df[x] > 70) & (df[x] < 90)])
+        transcript_body_coverage = np.mean(df[cov][(df[x] > 20) & (df[x] < 90)])
+        bias = three_prime_coverage / transcript_body_coverage
+
+    except:
+        bias = np.nan
 
     with open(outfile, "w") as out_file:
         out_file.write("three_prime_bias\n")
         out_file.write("%.2f\n" % bias)
+    
+
 
 
 @merge(threePrimeBias,

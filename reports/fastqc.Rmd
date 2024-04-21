@@ -217,12 +217,7 @@ If the reads have not been pre-processed (i.e. trimmed) a single peak representi
 ```{r seq-length, fig.height=3, fig.width=8,  echo=FALSE, message=FALSE}
 if(!is.null(sld))
 {
-if(length(unique(sld$Length)) > 1)
-{
-sld$lenbin <- read.table(text=sld$Length,sep="-")$V1
-} else { sld$lenbin <- sld$Length} 
- 
-gp <- ggplot(sld, aes_string("lenbin","Count", 
+gp <- ggplot(sld, aes_string("Length","Count", 
                              group="sample_id", color=plot_color, shape=plot_shape))
 gp <- gp + geom_line(alpha=0.75) + geom_point()
 if(!is.null(wrap_formula)) { gp <- gp + facet_wrap(formula(wrap_formula), scales="free_y") }

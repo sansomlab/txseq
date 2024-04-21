@@ -171,7 +171,7 @@ def loadSalmonTranscriptQuant(infiles, sentinel):
     
     IOTools.touch_file(sentinel)
 
-
+@follows(loadSalmonTranscriptQuant)
 @merge(quant, "salmon.dir/salmon.genes.sentinel")
 def loadSalmonGeneQuant(infiles, sentinel):
     '''
@@ -227,7 +227,7 @@ def salmonTPMs(infile, outfile):
     IOTools.touch_file(outfile)
 
 
-
+@follows(loadSalmonGeneQuant)
 @jobs_limit(1)
 @transform(salmonTPMs,
            suffix(".sentinel"),
@@ -259,7 +259,8 @@ def tximeta(infile, outfile):
     Run tximeta to summarise counts and gene and transcript level.
     '''
     
-    t = T.setup(infile, outfile, PARAMS)
+    t = T.setup(infile, outfile, PARAMS,
+                memory="24G")
     
     geneset_path = os.path.join(PARAMS["txseq_annotations"],
                                 "api.dir/txseq.geneset.gtf.gz")
@@ -297,6 +298,7 @@ def quantitation():
 
 # ----------------------- load txinfo ------------------------------ #
 
+@follows(loadSalmonTPMs)
 @files(None,
        "transcript.info.load")
 def loadTranscriptInfo(infile, outfile):
@@ -344,7 +346,7 @@ def numberGenesDetected(infile, outfile):
     
     IOTools.touch_file(outfile)
 
-
+@follows(loadTranscriptInfo)
 @jobs_limit(1)
 @files(numberGenesDetected,
        "qc.dir/qc_no_genes_salmon.load")
