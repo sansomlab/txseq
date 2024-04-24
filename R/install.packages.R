@@ -39,6 +39,8 @@ cran_packages <- c(
 "ggplot2",
 "ggrastr",
 "gplots",
+"ggrepel",
+"gridExtra",
 "hexbin",
 "knitr",
 "markdown",
@@ -56,8 +58,6 @@ bioconductor_packages <- c(
 "ComplexHeatmap",
 "dendsort",
 "genefilter",
-"ggrepel",
-"gridExtra",    
 "tximeta",
 "DESeq2",
 "vsn"
