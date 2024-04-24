@@ -30,18 +30,16 @@ install.package <- function(x, source="CRAN", github_repo="")
 }
 
 cran_packages <- c(
-"apeglm",
 "cba",
 "RSQLite",
 "DBI",
 "RColorBrewer",
 "dplyr",
-"dendsort",
 "fastcluster",
 "ggplot2",
 "ggrastr",
-"ggrepel",
 "gplots",
+"ggrepel",
 "gridExtra",
 "hexbin",
 "knitr",
@@ -56,11 +54,14 @@ cran_packages <- c(
 )
 
 bioconductor_packages <- c(
+"apeglm",
 "ComplexHeatmap",
+"dendsort",
 "genefilter",
 "tximeta",
 "DESeq2",
-"vsn")
+"vsn"
+)
 
 github_packages <- c("gsfisher"="sansomlab/gsfisher")
 
