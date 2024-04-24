@@ -30,7 +30,6 @@ install.package <- function(x, source="CRAN", github_repo="")
 }
 
 cran_packages <- c(
-"apeglm",
 "cba",
 "RSQLite",
 "DBI",
@@ -56,6 +55,7 @@ cran_packages <- c(
 )
 
 bioconductor_packages <- c(
+"apeglm",
 "ComplexHeatmap",
 "genefilter",
 "tximeta",
