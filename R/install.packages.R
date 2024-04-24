@@ -35,13 +35,10 @@ cran_packages <- c(
 "DBI",
 "RColorBrewer",
 "dplyr",
-"dendsort",
 "fastcluster",
 "ggplot2",
 "ggrastr",
-"ggrepel",
 "gplots",
-"gridExtra",
 "hexbin",
 "knitr",
 "markdown",
@@ -57,10 +54,14 @@ cran_packages <- c(
 bioconductor_packages <- c(
 "apeglm",
 "ComplexHeatmap",
+"dendsort",
 "genefilter",
+"ggrepel",
+"gridExtra",    
 "tximeta",
 "DESeq2",
-"vsn")
+"vsn"
+)
 
 github_packages <- c("gsfisher"="sansomlab/gsfisher")
 
