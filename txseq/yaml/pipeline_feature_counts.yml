@@ -19,10 +19,10 @@ txseq:
   #
   # If working on the KIR BMRC space, use e.g.
   #       for human: /well/kir/mirror/txseq/GRCh38.110.dir/ensembl.dir
-  #       for mouse: /well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir/
+  #       for mouse: /well/kir/mirror/txseq/GRCm39.110.dir/ensembl.dir
   #
   # For the mouse_hscs example, set to 
-  #       /my/path/to/GRCm39.110.dir/ensembl.dir/
+  #       /my/path/to/GRCm39.110.dir/ensembl.dir
   #
   annotations: 
 
