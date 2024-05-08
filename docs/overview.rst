@@ -34,7 +34,7 @@ Useful insight can be gained from examining read mapping statistics. Txseq can c
 
 For statistical and exploratory data analysis it is recommended to use tximeta length-corrected count estimates from Salmon. For visualising gene expression levels, it is recommended to use Salmon TPMs after applying an inter-sample normalisation routine such as e.g. upper-quartile normalisation.
 
-Examples of how the outputs can be used to assess read quality, perform exploratory analysis and to perform differentially expression analysis are provided as R markdown notebooks for :doc:`mouse hsc example <mouse_hscs_example>`. 
+Examples of how the outputs can be used to assess read quality, perform exploratory analysis and to perform differential expression analysis are provided as R markdown notebooks for :doc:`mouse hsc example <mouse_hscs_example>`. 
 
 
 
