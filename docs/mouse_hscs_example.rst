@@ -79,7 +79,7 @@ The pipeline can then be run as follows ::
 The output BAM files are located in the "hisat.dir" sub-directory.
 
 
-5. Generating post-mapping QC statistics
+6. Generating post-mapping QC statistics
 ----------------------------------------
 
 After mapping with Hisat2, post-mapping QC statistics are computed using :doc:`pipeline_bamqc.py<pipelines/pipeline_bamqc>`. This pipeline runs several `Picard <https://broadinstitute.github.io/picard/>`_ tools including *CollectRnaSeqMetrics*, *EstimateLibraryComplexity*, *AlignmentSummaryMetrics* and *CollectInsertSizeMetrics* as well as some custom scripts. ::
@@ -88,7 +88,7 @@ After mapping with Hisat2, post-mapping QC statistics are computed using :doc:`p
   mkdir bamqc
   cd bamqc
   txseq bamqc config # get a copy of the default configuration file
-  emacs pipeline_hisat.yml # edit the configuration file as appropriate
+  emacs pipeline_bamqc.yml # edit the configuration file as appropriate
   
 The pipeline can then be run as follows ::
 
@@ -97,16 +97,16 @@ The pipeline can then be run as follows ::
 The results are saved in an sqlite database in the "csvdb" file. 
 
 
-6. Quantitation with FeatureCounts
+7. Quantitation with FeatureCounts
 ----------------------------------
 
-Count tables can be extracted from the BAM file using :doc:`pipeline_feature_counts.py<pipelines/pipeline_feature_counts>`.
+Count tables can be extracted from the BAM file using :doc:`pipeline_feature_counts.py<pipelines/pipeline_feature_counts>`. ::
 
   cd ~/work/txseq_hscs_example
   mkdir feature_counts
   cd feature_counts
   txseq feature_counts config # get a copy of the default configuration file
-  emacs pipeline_hisat.yml # edit the configuration file as appropriate
+  emacs pipeline_feature_counts.yml # edit the configuration file as appropriate
 
 The pipeline can then be run as follows ::
 
@@ -115,7 +115,7 @@ The pipeline can then be run as follows ::
 The results are saved in an sqlite database in the "csvdb" file. 
 
 
-7. Quantitation with Salmon
+8. Quantitation with Salmon
 ---------------------------
 
 To quantitate the data using :doc:`pipeline_salmon.py<pipelines/pipeline_salmon>`, we begin by fetching and edit a copy of the configuration file to set the paths to the "libraries.tsv" and "samples.tsv" files and salmon index ::
@@ -133,7 +133,7 @@ The pipeline can then be run as follows ::
 The results of the pipeline are stored in the "csvdb" sqlite database and as a tximeta object in the "tximeta.dir/tximeta.RDS" for downstream analysis. Flat tables of TPMs can be retrieved from the database or from the "salmon.dir/salmon.transcripts.tpms.txt.gz" file.
 
 
-8. Post-mapping QC analysis
+9. Post-mapping QC analysis
 ---------------------------
 
 After running :doc:`pipeline_bamqc.py<pipelines/pipeline_bamqc>` and :doc:`pipeline_salmon.py<pipelines/pipeline_salmon>` post-mapping QC can be performed using the "post_mapping_qc.Rmd" report template.
@@ -143,7 +143,7 @@ Make a copy of the Rmd template file and open it in Rstudio to perform the analy
 This analysis helps to identify confounding technical sources of variation.
 
 
-9. Exploratory analysis
+10. Exploratory analysis
 -----------------------
 
 After running :doc:`pipeline_salmon.py<pipelines/pipeline_salmon>` the similarity between the samples in gene-expression space can be explored using the "exploratory_data_analysis.Rmd" R Markdown report template.
@@ -153,7 +153,7 @@ Make a copy of this file and open it in Rstudio to perform the analysis. The rep
 Together with the post-mapping QC report this analysis is useful for the identification of outliers.
 
 
-10. DESeq2 analysis
+11. DESeq2 analysis
 -------------------
 
 
