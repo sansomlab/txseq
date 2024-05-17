@@ -28,7 +28,7 @@ txseq:
   annotations: 
   
   # Path to the location where the "txseq hisat_index" pipeline was run
-  # to generate the salmon index
+  # to generate the hisat index
   #
   # If working on the KIR BMRC space, use e.g.
   #       for human: /well/kir/mirror/txseq/GRCh38.110.dir/hisat.index.dir/genome_tran
