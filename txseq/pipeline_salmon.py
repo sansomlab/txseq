@@ -167,7 +167,7 @@ def loadSalmonTranscriptQuant(infiles, sentinel):
                            regex_filename=".*/(.*)/quant.sf",
                            cat="sample_id",
                            options="-i Name -i sample_id",
-                           job_memory=PARAMS["sql_himem"])
+                           job_memory=PARAMS["sqlite_himem"])
     
     IOTools.touch_file(sentinel)
 
@@ -185,7 +185,7 @@ def loadSalmonGeneQuant(infiles, sentinel):
                            regex_filename=".*/(.*)/quant.genes.sf",
                            cat="sample_id",
                            options="-i Name -i sample_id",
-                           job_memory=PARAMS["sql_himem"])
+                           job_memory=PARAMS["sqlite_himem"])
     
     IOTools.touch_file(sentinel)
 
@@ -249,7 +249,7 @@ def loadSalmonTPMs(infile, outfile):
     file_name = infile[:-len(".sentinel")] + ".txt.gz"
 
     P.load(file_name, outfile, options=opts,
-           job_memory=PARAMS["sql_himem"])
+           job_memory=PARAMS["sqlite_himem"])
 
 
 @follows(quant)
