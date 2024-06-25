@@ -170,7 +170,7 @@ def loadCounts(infiles, outfile):
                            cat="track",
                            header="track,gene_id,counts",
                            options='-i "gene_id"',
-                           job_memory=PARAMS["sql_himem"])
+                           job_memory=PARAMS["sqlite_himem"])
 
 
 @files(loadCounts,
