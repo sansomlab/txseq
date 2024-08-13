@@ -629,10 +629,11 @@ def qcSummary(infiles, outfile):
     join_stat = ""
     for table in tables[1:]:
         join_stat += "left join " + table + "\n"
-        join_stat += "on " + t1 + ".sample_id=" + table + ".sample_id\n"
-
-    where_stat = '''where qc_alignment_summary_metrics.CATEGORY="%(pcat)s"
-                 ''' % locals()
+        if table == "qc_alignment_summary_metrics":
+            join_stat += "on (" + t1 + ".sample_id=" + table + ".sample_id) "
+            join_stat += '''and qc_alignment_summary_metrics.CATEGORY="%(pcat)s\n"''' % locals()
+        else:
+            join_stat += "on " + t1 + ".sample_id=" + table + ".sample_id\n"
 
     statement = "\n".join([stat_start, join_stat, where_stat])
 
