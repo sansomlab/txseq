@@ -635,7 +635,7 @@ def qcSummary(infiles, outfile):
         else:
             join_stat += "on " + t1 + ".sample_id=" + table + ".sample_id\n"
 
-    statement = "\n".join([stat_start, join_stat, where_stat])
+    statement = "\n".join([stat_start, join_stat])
 
     df = DB.fetch_DataFrame(statement, PARAMS["sqlite_file"])
     df.to_csv(outfile, sep="\t", index=False)
