@@ -631,7 +631,7 @@ def qcSummary(infiles, outfile):
         join_stat += "left join " + table + "\n"
         if table == "qc_alignment_summary_metrics":
             join_stat += "on (" + t1 + ".sample_id=" + table + ".sample_id) "
-            join_stat += '''and qc_alignment_summary_metrics.CATEGORY="%(pcat)s\n"''' % locals()
+            join_stat += '''and qc_alignment_summary_metrics.CATEGORY="%(pcat)s"\n''' % locals()
         else:
             join_stat += "on " + t1 + ".sample_id=" + table + ".sample_id\n"
 
